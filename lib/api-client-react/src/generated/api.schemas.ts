@@ -461,6 +461,152 @@ export interface DailySummary {
   events: CalendarEvent[];
 }
 
+export interface CalculatePrayerTimesBody {
+  latitude: number;
+  longitude: number;
+  /** @nullable */
+  date?: string | null;
+  /** @nullable */
+  method?: string | null;
+}
+
+export interface QuranProgress {
+  id: string;
+  currentSurah: number;
+  currentPage: number;
+  totalPages: number;
+  /** @nullable */
+  targetDate?: string | null;
+  dailyTarget: number;
+  pagesLeft: number;
+  percentComplete: number;
+  /** @nullable */
+  daysToComplete?: number | null;
+  /** @nullable */
+  notes?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+
+export interface InitQuranProgressBody {
+  /** @nullable */
+  targetDate?: string | null;
+  /** @nullable */
+  currentSurah?: number | null;
+  /** @nullable */
+  currentPage?: number | null;
+  /** @nullable */
+  dailyTarget?: number | null;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export interface UpdateQuranProgressBody {
+  /** @nullable */
+  currentSurah?: number | null;
+  /** @nullable */
+  currentPage?: number | null;
+  /** @nullable */
+  targetDate?: string | null;
+  /** @nullable */
+  dailyTarget?: number | null;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export type IslamicActivityCategory =
+  (typeof IslamicActivityCategory)[keyof typeof IslamicActivityCategory];
+
+export const IslamicActivityCategory = {
+  prayer: "prayer",
+  fasting: "fasting",
+  quran: "quran",
+  dhikr: "dhikr",
+  charity: "charity",
+  sunnah: "sunnah",
+  "jumu'ah": "jumu'ah",
+  other: "other",
+} as const;
+
+export interface IslamicActivity {
+  id: string;
+  name: string;
+  /** @nullable */
+  arabicName?: string | null;
+  rewardText: string;
+  category: IslamicActivityCategory;
+  /** @nullable */
+  hijriMonth?: number | null;
+  /** @nullable */
+  hijriDay?: number | null;
+  /** @nullable */
+  dayOfWeek?: number | null;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt: string;
+}
+
+export type ActivityLogStatus =
+  (typeof ActivityLogStatus)[keyof typeof ActivityLogStatus];
+
+export const ActivityLogStatus = {
+  completed: "completed",
+  intended: "intended",
+} as const;
+
+export interface ActivityLog {
+  id: string;
+  activityId: string;
+  status: ActivityLogStatus;
+  date: string;
+  /** @nullable */
+  hijriDate?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  loggedAt: string;
+}
+
+export type ActivityLogWithDeedStatus =
+  (typeof ActivityLogWithDeedStatus)[keyof typeof ActivityLogWithDeedStatus];
+
+export const ActivityLogWithDeedStatus = {
+  completed: "completed",
+  intended: "intended",
+} as const;
+
+export interface ActivityLogWithDeed {
+  id: string;
+  activityId: string;
+  status: ActivityLogWithDeedStatus;
+  date: string;
+  /** @nullable */
+  hijriDate?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  loggedAt: string;
+  activityName: string;
+  activityCategory: string;
+  activityRewardText: string;
+}
+
+export type LogDeedBodyStatus =
+  (typeof LogDeedBodyStatus)[keyof typeof LogDeedBodyStatus];
+
+export const LogDeedBodyStatus = {
+  completed: "completed",
+  intended: "intended",
+} as const;
+
+export interface LogDeedBody {
+  status?: LogDeedBodyStatus;
+  /** @nullable */
+  date?: string | null;
+  /** @nullable */
+  hijriDate?: string | null;
+  /** @nullable */
+  notes?: string | null;
+}
+
 export type ListTasksParams = {
   /**
    * Filter by due date (YYYY-MM-DD)
@@ -503,6 +649,27 @@ export type ListPrayersParams = {
 export type ListFocusSessionsParams = {
   /**
    * Filter by date (YYYY-MM-DD)
+   * @nullable
+   */
+  date?: string | null;
+};
+
+export type ListDeedsParams = {
+  /**
+   * If true, returns only deeds relevant to today (day of week / hijri date)
+   * @nullable
+   */
+  todayOnly?: boolean | null;
+  /**
+   * Date to filter by (YYYY-MM-DD, defaults to today when todayOnly=true)
+   * @nullable
+   */
+  date?: string | null;
+};
+
+export type ListDeedLogsParams = {
+  /**
+   * Filter by date (YYYY-MM-DD, defaults to today)
    * @nullable
    */
   date?: string | null;

@@ -6,6 +6,7 @@ import eventsRouter from "./events";
 import prayersRouter from "./prayers";
 import focusRouter from "./focus";
 import dailySummaryRouter from "./daily-summary";
+import islamicRouter from "./islamic";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use(eventsRouter);
 router.use(prayersRouter);
 router.use(focusRouter);
 router.use(dailySummaryRouter);
+router.use(islamicRouter);
 
 export default router;

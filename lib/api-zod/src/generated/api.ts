@@ -472,6 +472,163 @@ export const GetFocusStatsResponse = zod.object({
 });
 
 /**
+ * @summary Calculate prayer times from coordinates and seed today's prayers
+ */
+export const CalculatePrayerTimesBody = zod.object({
+  latitude: zod.number(),
+  longitude: zod.number(),
+  date: zod.string().nullish(),
+  method: zod.string().nullish(),
+});
+
+export const CalculatePrayerTimesResponseItem = zod.object({
+  id: zod.string(),
+  name: zod.enum(["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"]),
+  date: zod.string(),
+  scheduledTime: zod.string().nullish(),
+  status: zod.enum(["pending", "on_time", "late", "missed"]),
+  completedAt: zod.string().nullish(),
+});
+export const CalculatePrayerTimesResponse = zod.array(
+  CalculatePrayerTimesResponseItem,
+);
+
+/**
+ * @summary Get current Quran reading progress
+ */
+export const GetQuranProgressResponse = zod.object({
+  id: zod.string(),
+  currentSurah: zod.number(),
+  currentPage: zod.number(),
+  totalPages: zod.number(),
+  targetDate: zod.string().nullish(),
+  dailyTarget: zod.number(),
+  pagesLeft: zod.number(),
+  percentComplete: zod.number(),
+  daysToComplete: zod.number().nullish(),
+  notes: zod.string().nullish(),
+  updatedAt: zod.string(),
+  createdAt: zod.string(),
+});
+
+/**
+ * @summary Initialize a new Khatmah
+ */
+export const InitQuranProgressBody = zod.object({
+  targetDate: zod.string().nullish(),
+  currentSurah: zod.number().nullish(),
+  currentPage: zod.number().nullish(),
+  dailyTarget: zod.number().nullish(),
+  notes: zod.string().nullish(),
+});
+
+/**
+ * @summary Update reading progress
+ */
+export const UpdateQuranProgressBody = zod.object({
+  currentSurah: zod.number().nullish(),
+  currentPage: zod.number().nullish(),
+  targetDate: zod.string().nullish(),
+  dailyTarget: zod.number().nullish(),
+  notes: zod.string().nullish(),
+});
+
+export const UpdateQuranProgressResponse = zod.object({
+  id: zod.string(),
+  currentSurah: zod.number(),
+  currentPage: zod.number(),
+  totalPages: zod.number(),
+  targetDate: zod.string().nullish(),
+  dailyTarget: zod.number(),
+  pagesLeft: zod.number(),
+  percentComplete: zod.number(),
+  daysToComplete: zod.number().nullish(),
+  notes: zod.string().nullish(),
+  updatedAt: zod.string(),
+  createdAt: zod.string(),
+});
+
+/**
+ * @summary List Islamic activities catalog with optional today filter
+ */
+export const ListDeedsQueryParams = zod.object({
+  todayOnly: zod.coerce
+    .boolean()
+    .nullish()
+    .describe(
+      "If true, returns only deeds relevant to today (day of week \/ hijri date)",
+    ),
+  date: zod.coerce
+    .string()
+    .nullish()
+    .describe(
+      "Date to filter by (YYYY-MM-DD, defaults to today when todayOnly=true)",
+    ),
+});
+
+export const ListDeedsResponseItem = zod.object({
+  id: zod.string(),
+  name: zod.string(),
+  arabicName: zod.string().nullish(),
+  rewardText: zod.string(),
+  category: zod.enum([
+    "prayer",
+    "fasting",
+    "quran",
+    "dhikr",
+    "charity",
+    "sunnah",
+    "jumu'ah",
+    "other",
+  ]),
+  hijriMonth: zod.number().nullish(),
+  hijriDay: zod.number().nullish(),
+  dayOfWeek: zod.number().nullish(),
+  isActive: zod.boolean(),
+  sortOrder: zod.number(),
+  createdAt: zod.string(),
+});
+export const ListDeedsResponse = zod.array(ListDeedsResponseItem);
+
+/**
+ * @summary Log completion or intention for a deed
+ */
+export const LogDeedParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const LogDeedBody = zod.object({
+  status: zod.enum(["completed", "intended"]).optional(),
+  date: zod.string().nullish(),
+  hijriDate: zod.string().nullish(),
+  notes: zod.string().nullish(),
+});
+
+/**
+ * @summary Get deed activity logs
+ */
+export const ListDeedLogsQueryParams = zod.object({
+  date: zod.coerce
+    .string()
+    .nullish()
+    .describe("Filter by date (YYYY-MM-DD, defaults to today)"),
+});
+
+export const ListDeedLogsResponseItem = zod.object({
+  id: zod.string(),
+  activityId: zod.string(),
+  status: zod.enum(["completed", "intended"]),
+  date: zod.string(),
+  hijriDate: zod.string().nullish(),
+  notes: zod.string().nullish(),
+  loggedAt: zod.string(),
+  activityName: zod.string(),
+  activityCategory: zod.string(),
+  activityRewardText: zod.string(),
+});
+export const ListDeedLogsResponse = zod.array(ListDeedLogsResponseItem);
+
+/**
  * @summary Get unified daily summary for AI automation
  */
 export const GetDailySummaryQueryParams = zod.object({

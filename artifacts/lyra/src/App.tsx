@@ -11,6 +11,7 @@ import Calendar from "@/pages/calendar";
 import Prayers from "@/pages/prayers";
 import Focus from "@/pages/focus";
 import Summary from "@/pages/summary";
+import Islamic from "@/pages/islamic";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
@@ -33,6 +34,7 @@ function Router() {
         <Route path="/prayers" component={Prayers} />
         <Route path="/focus" component={Focus} />
         <Route path="/summary" component={Summary} />
+        <Route path="/islamic" component={Islamic} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

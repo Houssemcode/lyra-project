@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, CheckSquare, Flame, CalendarDays, Moon, Timer, BarChart3, Menu, X } from "lucide-react";
+import { LayoutDashboard, CheckSquare, Flame, CalendarDays, Moon, Timer, BarChart3, Menu, X, Star } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -11,6 +11,7 @@ const navItems = [
   { href: "/prayers", label: "Prayers", icon: Moon },
   { href: "/focus", label: "Focus", icon: Timer },
   { href: "/summary", label: "Summary", icon: BarChart3 },
+  { href: "/islamic", label: "Islamic Life", icon: Star },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -60,7 +61,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
         {/* Footer */}
         <div className="px-5 py-4 border-t border-sidebar-border">
-          <p className="text-xs text-sidebar-foreground/40">Lyra v1.0</p>
+          <p className="text-xs text-sidebar-foreground/40">Lyra v1.2</p>
         </div>
       </aside>
 

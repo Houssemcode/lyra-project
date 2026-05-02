@@ -17,6 +17,9 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  ActivityLog,
+  ActivityLogWithDeed,
+  CalculatePrayerTimesBody,
   CalendarEvent,
   CreateEventBody,
   CreateFocusSessionBody,
@@ -30,12 +33,18 @@ import type {
   HabitLog,
   HabitWithStatus,
   HealthStatus,
+  InitQuranProgressBody,
+  IslamicActivity,
+  ListDeedLogsParams,
+  ListDeedsParams,
   ListEventsParams,
   ListFocusSessionsParams,
   ListPrayersParams,
   ListTasksParams,
+  LogDeedBody,
   LogHabitBody,
   Prayer,
+  QuranProgress,
   SeedPrayersBody,
   Task,
   TodayTasksSummary,
@@ -43,6 +52,7 @@ import type {
   UpdateFocusSessionBody,
   UpdateHabitBody,
   UpdatePrayerBody,
+  UpdateQuranProgressBody,
   UpdateTaskBody,
 } from "./api.schemas";
 
@@ -2164,6 +2174,615 @@ export function useGetFocusStats<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetFocusStatsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Calculate prayer times from coordinates and seed today's prayers
+ */
+export const getCalculatePrayerTimesUrl = () => {
+  return `/api/prayers/calculate`;
+};
+
+export const calculatePrayerTimes = async (
+  calculatePrayerTimesBody: CalculatePrayerTimesBody,
+  options?: RequestInit,
+): Promise<Prayer[]> => {
+  return customFetch<Prayer[]>(getCalculatePrayerTimesUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(calculatePrayerTimesBody),
+  });
+};
+
+export const getCalculatePrayerTimesMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof calculatePrayerTimes>>,
+    TError,
+    { data: BodyType<CalculatePrayerTimesBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof calculatePrayerTimes>>,
+  TError,
+  { data: BodyType<CalculatePrayerTimesBody> },
+  TContext
+> => {
+  const mutationKey = ["calculatePrayerTimes"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof calculatePrayerTimes>>,
+    { data: BodyType<CalculatePrayerTimesBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return calculatePrayerTimes(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CalculatePrayerTimesMutationResult = NonNullable<
+  Awaited<ReturnType<typeof calculatePrayerTimes>>
+>;
+export type CalculatePrayerTimesMutationBody =
+  BodyType<CalculatePrayerTimesBody>;
+export type CalculatePrayerTimesMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Calculate prayer times from coordinates and seed today's prayers
+ */
+export const useCalculatePrayerTimes = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof calculatePrayerTimes>>,
+    TError,
+    { data: BodyType<CalculatePrayerTimesBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof calculatePrayerTimes>>,
+  TError,
+  { data: BodyType<CalculatePrayerTimesBody> },
+  TContext
+> => {
+  return useMutation(getCalculatePrayerTimesMutationOptions(options));
+};
+
+/**
+ * @summary Get current Quran reading progress
+ */
+export const getGetQuranProgressUrl = () => {
+  return `/api/quran`;
+};
+
+export const getQuranProgress = async (
+  options?: RequestInit,
+): Promise<QuranProgress> => {
+  return customFetch<QuranProgress>(getGetQuranProgressUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetQuranProgressQueryKey = () => {
+  return [`/api/quran`] as const;
+};
+
+export const getGetQuranProgressQueryOptions = <
+  TData = Awaited<ReturnType<typeof getQuranProgress>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getQuranProgress>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetQuranProgressQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getQuranProgress>>
+  > = ({ signal }) => getQuranProgress({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getQuranProgress>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetQuranProgressQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getQuranProgress>>
+>;
+export type GetQuranProgressQueryError = ErrorType<void>;
+
+/**
+ * @summary Get current Quran reading progress
+ */
+
+export function useGetQuranProgress<
+  TData = Awaited<ReturnType<typeof getQuranProgress>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getQuranProgress>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetQuranProgressQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Initialize a new Khatmah
+ */
+export const getInitQuranProgressUrl = () => {
+  return `/api/quran`;
+};
+
+export const initQuranProgress = async (
+  initQuranProgressBody: InitQuranProgressBody,
+  options?: RequestInit,
+): Promise<QuranProgress> => {
+  return customFetch<QuranProgress>(getInitQuranProgressUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(initQuranProgressBody),
+  });
+};
+
+export const getInitQuranProgressMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof initQuranProgress>>,
+    TError,
+    { data: BodyType<InitQuranProgressBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof initQuranProgress>>,
+  TError,
+  { data: BodyType<InitQuranProgressBody> },
+  TContext
+> => {
+  const mutationKey = ["initQuranProgress"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof initQuranProgress>>,
+    { data: BodyType<InitQuranProgressBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return initQuranProgress(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type InitQuranProgressMutationResult = NonNullable<
+  Awaited<ReturnType<typeof initQuranProgress>>
+>;
+export type InitQuranProgressMutationBody = BodyType<InitQuranProgressBody>;
+export type InitQuranProgressMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Initialize a new Khatmah
+ */
+export const useInitQuranProgress = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof initQuranProgress>>,
+    TError,
+    { data: BodyType<InitQuranProgressBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof initQuranProgress>>,
+  TError,
+  { data: BodyType<InitQuranProgressBody> },
+  TContext
+> => {
+  return useMutation(getInitQuranProgressMutationOptions(options));
+};
+
+/**
+ * @summary Update reading progress
+ */
+export const getUpdateQuranProgressUrl = () => {
+  return `/api/quran`;
+};
+
+export const updateQuranProgress = async (
+  updateQuranProgressBody: UpdateQuranProgressBody,
+  options?: RequestInit,
+): Promise<QuranProgress> => {
+  return customFetch<QuranProgress>(getUpdateQuranProgressUrl(), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateQuranProgressBody),
+  });
+};
+
+export const getUpdateQuranProgressMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateQuranProgress>>,
+    TError,
+    { data: BodyType<UpdateQuranProgressBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateQuranProgress>>,
+  TError,
+  { data: BodyType<UpdateQuranProgressBody> },
+  TContext
+> => {
+  const mutationKey = ["updateQuranProgress"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateQuranProgress>>,
+    { data: BodyType<UpdateQuranProgressBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateQuranProgress(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateQuranProgressMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateQuranProgress>>
+>;
+export type UpdateQuranProgressMutationBody = BodyType<UpdateQuranProgressBody>;
+export type UpdateQuranProgressMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update reading progress
+ */
+export const useUpdateQuranProgress = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateQuranProgress>>,
+    TError,
+    { data: BodyType<UpdateQuranProgressBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateQuranProgress>>,
+  TError,
+  { data: BodyType<UpdateQuranProgressBody> },
+  TContext
+> => {
+  return useMutation(getUpdateQuranProgressMutationOptions(options));
+};
+
+/**
+ * @summary List Islamic activities catalog with optional today filter
+ */
+export const getListDeedsUrl = (params?: ListDeedsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/deeds?${stringifiedParams}`
+    : `/api/deeds`;
+};
+
+export const listDeeds = async (
+  params?: ListDeedsParams,
+  options?: RequestInit,
+): Promise<IslamicActivity[]> => {
+  return customFetch<IslamicActivity[]>(getListDeedsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListDeedsQueryKey = (params?: ListDeedsParams) => {
+  return [`/api/deeds`, ...(params ? [params] : [])] as const;
+};
+
+export const getListDeedsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listDeeds>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListDeedsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listDeeds>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListDeedsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listDeeds>>> = ({
+    signal,
+  }) => listDeeds(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listDeeds>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListDeedsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listDeeds>>
+>;
+export type ListDeedsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List Islamic activities catalog with optional today filter
+ */
+
+export function useListDeeds<
+  TData = Awaited<ReturnType<typeof listDeeds>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListDeedsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listDeeds>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListDeedsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Log completion or intention for a deed
+ */
+export const getLogDeedUrl = (id: string) => {
+  return `/api/deeds/${id}/log`;
+};
+
+export const logDeed = async (
+  id: string,
+  logDeedBody: LogDeedBody,
+  options?: RequestInit,
+): Promise<ActivityLog> => {
+  return customFetch<ActivityLog>(getLogDeedUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(logDeedBody),
+  });
+};
+
+export const getLogDeedMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof logDeed>>,
+    TError,
+    { id: string; data: BodyType<LogDeedBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof logDeed>>,
+  TError,
+  { id: string; data: BodyType<LogDeedBody> },
+  TContext
+> => {
+  const mutationKey = ["logDeed"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof logDeed>>,
+    { id: string; data: BodyType<LogDeedBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return logDeed(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type LogDeedMutationResult = NonNullable<
+  Awaited<ReturnType<typeof logDeed>>
+>;
+export type LogDeedMutationBody = BodyType<LogDeedBody>;
+export type LogDeedMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Log completion or intention for a deed
+ */
+export const useLogDeed = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof logDeed>>,
+    TError,
+    { id: string; data: BodyType<LogDeedBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof logDeed>>,
+  TError,
+  { id: string; data: BodyType<LogDeedBody> },
+  TContext
+> => {
+  return useMutation(getLogDeedMutationOptions(options));
+};
+
+/**
+ * @summary Get deed activity logs
+ */
+export const getListDeedLogsUrl = (params?: ListDeedLogsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/deeds/logs?${stringifiedParams}`
+    : `/api/deeds/logs`;
+};
+
+export const listDeedLogs = async (
+  params?: ListDeedLogsParams,
+  options?: RequestInit,
+): Promise<ActivityLogWithDeed[]> => {
+  return customFetch<ActivityLogWithDeed[]>(getListDeedLogsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListDeedLogsQueryKey = (params?: ListDeedLogsParams) => {
+  return [`/api/deeds/logs`, ...(params ? [params] : [])] as const;
+};
+
+export const getListDeedLogsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listDeedLogs>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListDeedLogsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listDeedLogs>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListDeedLogsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listDeedLogs>>> = ({
+    signal,
+  }) => listDeedLogs(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listDeedLogs>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListDeedLogsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listDeedLogs>>
+>;
+export type ListDeedLogsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get deed activity logs
+ */
+
+export function useListDeedLogs<
+  TData = Awaited<ReturnType<typeof listDeedLogs>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListDeedLogsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listDeedLogs>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListDeedLogsQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

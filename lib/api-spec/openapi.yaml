@@ -22,6 +22,8 @@ tags:
     description: Focus / Pomodoro sessions
   - name: summary
     description: Daily summary for automation
+  - name: islamic
+    description: Islamic life module (Quran tracker, deeds catalog)
 paths:
   /healthz:
     get:
@@ -507,6 +509,151 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/FocusStats"
+
+  # ─── PRAYERS CALCULATE ───────────────────────────────────────────────────────
+  /prayers/calculate:
+    post:
+      operationId: calculatePrayerTimes
+      tags: [prayers]
+      summary: Calculate prayer times from coordinates and seed today's prayers
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CalculatePrayerTimesBody"
+      responses:
+        "200":
+          description: Calculated and seeded prayers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Prayer"
+
+  # ─── QURAN PROGRESS ──────────────────────────────────────────────────────────
+  /quran:
+    get:
+      operationId: getQuranProgress
+      tags: [islamic]
+      summary: Get current Quran reading progress
+      responses:
+        "200":
+          description: Current Khatmah progress
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuranProgress"
+        "404":
+          description: No progress found
+    post:
+      operationId: initQuranProgress
+      tags: [islamic]
+      summary: Initialize a new Khatmah
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InitQuranProgressBody"
+      responses:
+        "201":
+          description: Created Khatmah progress
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuranProgress"
+    patch:
+      operationId: updateQuranProgress
+      tags: [islamic]
+      summary: Update reading progress
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateQuranProgressBody"
+      responses:
+        "200":
+          description: Updated progress
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuranProgress"
+
+  # ─── ISLAMIC DEEDS ───────────────────────────────────────────────────────────
+  /deeds:
+    get:
+      operationId: listDeeds
+      tags: [islamic]
+      summary: List Islamic activities catalog with optional today filter
+      parameters:
+        - name: todayOnly
+          in: query
+          schema:
+            type: ["boolean", "null"]
+          description: If true, returns only deeds relevant to today (day of week / hijri date)
+        - name: date
+          in: query
+          schema:
+            type: ["string", "null"]
+          description: Date to filter by (YYYY-MM-DD, defaults to today when todayOnly=true)
+      responses:
+        "200":
+          description: List of Islamic activities
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/IslamicActivity"
+
+  /deeds/{id}/log:
+    post:
+      operationId: logDeed
+      tags: [islamic]
+      summary: Log completion or intention for a deed
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LogDeedBody"
+      responses:
+        "201":
+          description: Logged deed entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActivityLog"
+
+  /deeds/logs:
+    get:
+      operationId: listDeedLogs
+      tags: [islamic]
+      summary: Get deed activity logs
+      parameters:
+        - name: date
+          in: query
+          schema:
+            type: ["string", "null"]
+          description: Filter by date (YYYY-MM-DD, defaults to today)
+      responses:
+        "200":
+          description: Activity logs with deed details
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActivityLogWithDeed"
 
   # ─── DAILY SUMMARY ───────────────────────────────────────────────────────────
   /daily-summary:
@@ -1101,3 +1248,193 @@ components:
         - totalMinutes
         - totalSessions
         - completedSessions
+
+    # ─── ISLAMIC SCHEMAS ─────────────────────────────────────────────────────────
+
+    CalculatePrayerTimesBody:
+      type: object
+      properties:
+        latitude:
+          type: number
+        longitude:
+          type: number
+        date:
+          type: ["string", "null"]
+        method:
+          type: ["string", "null"]
+      required:
+        - latitude
+        - longitude
+
+    QuranProgress:
+      type: object
+      properties:
+        id:
+          type: string
+        currentSurah:
+          type: integer
+        currentPage:
+          type: integer
+        totalPages:
+          type: integer
+        targetDate:
+          type: ["string", "null"]
+        dailyTarget:
+          type: integer
+        pagesLeft:
+          type: integer
+        percentComplete:
+          type: integer
+        daysToComplete:
+          type: ["integer", "null"]
+        notes:
+          type: ["string", "null"]
+        updatedAt:
+          type: string
+        createdAt:
+          type: string
+      required:
+        - id
+        - currentSurah
+        - currentPage
+        - totalPages
+        - dailyTarget
+        - pagesLeft
+        - percentComplete
+        - updatedAt
+        - createdAt
+
+    InitQuranProgressBody:
+      type: object
+      properties:
+        targetDate:
+          type: ["string", "null"]
+        currentSurah:
+          type: ["integer", "null"]
+        currentPage:
+          type: ["integer", "null"]
+        dailyTarget:
+          type: ["integer", "null"]
+        notes:
+          type: ["string", "null"]
+
+    UpdateQuranProgressBody:
+      type: object
+      properties:
+        currentSurah:
+          type: ["integer", "null"]
+        currentPage:
+          type: ["integer", "null"]
+        targetDate:
+          type: ["string", "null"]
+        dailyTarget:
+          type: ["integer", "null"]
+        notes:
+          type: ["string", "null"]
+
+    IslamicActivity:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        arabicName:
+          type: ["string", "null"]
+        rewardText:
+          type: string
+        category:
+          type: string
+          enum: [prayer, fasting, quran, dhikr, charity, sunnah, "jumu'ah", other]
+        hijriMonth:
+          type: ["integer", "null"]
+        hijriDay:
+          type: ["integer", "null"]
+        dayOfWeek:
+          type: ["integer", "null"]
+        isActive:
+          type: boolean
+        sortOrder:
+          type: integer
+        createdAt:
+          type: string
+      required:
+        - id
+        - name
+        - rewardText
+        - category
+        - isActive
+        - sortOrder
+        - createdAt
+
+    ActivityLog:
+      type: object
+      properties:
+        id:
+          type: string
+        activityId:
+          type: string
+        status:
+          type: string
+          enum: [completed, intended]
+        date:
+          type: string
+        hijriDate:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        loggedAt:
+          type: string
+      required:
+        - id
+        - activityId
+        - status
+        - date
+        - loggedAt
+
+    ActivityLogWithDeed:
+      type: object
+      properties:
+        id:
+          type: string
+        activityId:
+          type: string
+        status:
+          type: string
+          enum: [completed, intended]
+        date:
+          type: string
+        hijriDate:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        loggedAt:
+          type: string
+        activityName:
+          type: string
+        activityCategory:
+          type: string
+        activityRewardText:
+          type: string
+      required:
+        - id
+        - activityId
+        - status
+        - date
+        - loggedAt
+        - activityName
+        - activityCategory
+        - activityRewardText
+
+    LogDeedBody:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [completed, intended]
+        date:
+          type: ["string", "null"]
+        hijriDate:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
