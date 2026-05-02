@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useGetSettings, useUpdateSettings, getGetSettingsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Settings as SettingsIcon, User, Moon, Clock, CheckCircle2, Info, Bell, BellOff, AlertTriangle } from "lucide-react";
+import { Settings as SettingsIcon, User, Moon, Clock, CheckCircle2, Info, Bell, BellOff, AlertTriangle, Download, FileJson, FileText, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -145,6 +145,83 @@ export default function SettingsPage() {
       await enable();
     } else {
       disable();
+    }
+  }
+
+  // ── Export helpers ────────────────────────────────────────────────────────
+  const [exportLoading, setExportLoading] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  function triggerDownload(blob: Blob, filename: string) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function toCSV(rows: Record<string, unknown>[]): string {
+    if (!rows.length) return "";
+    const keys = Object.keys(rows[0]!);
+    const escape = (v: unknown) => {
+      if (v === null || v === undefined) return "";
+      const s = String(v);
+      return s.includes(",") || s.includes('"') || s.includes("\n")
+        ? `"${s.replace(/"/g, '""')}"`
+        : s;
+    };
+    return [keys.join(","), ...rows.map((r) => keys.map((k) => escape(r[k])).join(","))].join("\n");
+  }
+
+  async function fetchExportData() {
+    const res = await fetch("/api/export");
+    if (!res.ok) throw new Error(`Export failed: ${res.status}`);
+    return res.json() as Promise<{
+      exportedAt: string;
+      data: Record<string, unknown[] | Record<string, unknown> | null>;
+    }>;
+  }
+
+  async function handleExportJSON() {
+    setExportLoading("json");
+    setExportError(null);
+    try {
+      const data = await fetchExportData();
+      const date = new Date().toISOString().slice(0, 10);
+      triggerDownload(
+        new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }),
+        `lyra-export-${date}.json`
+      );
+    } catch (e) {
+      setExportError(e instanceof Error ? e.message : "Export failed");
+    } finally {
+      setExportLoading(null);
+    }
+  }
+
+  async function handleExportCSV(key: string, filename: string) {
+    setExportLoading(key);
+    setExportError(null);
+    try {
+      const { data } = await fetchExportData();
+      const rows = data[key];
+      if (!Array.isArray(rows) || !rows.length) {
+        setExportError("No data to export for this category.");
+        setExportLoading(null);
+        return;
+      }
+      const date = new Date().toISOString().slice(0, 10);
+      triggerDownload(
+        new Blob([toCSV(rows as Record<string, unknown>[])], { type: "text/csv" }),
+        `lyra-${filename}-${date}.csv`
+      );
+    } catch (e) {
+      setExportError(e instanceof Error ? e.message : "Export failed");
+    } finally {
+      setExportLoading(null);
     }
   }
 
@@ -371,6 +448,82 @@ export default function SettingsPage() {
                 </SelectContent>
               </Select>
             </FieldRow>
+          </SectionCard>
+
+          {/* ── Export ── */}
+          <SectionCard icon={<Download size={14} className="text-primary" />} title="Export & Backup">
+            <div className="space-y-4">
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Download a copy of your Lyra data. JSON contains everything; CSV files are per-category and open in any spreadsheet app.
+              </p>
+
+              {/* JSON */}
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                    <FileJson size={14} className="text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Full backup (JSON)</p>
+                    <p className="text-xs text-muted-foreground">All data — tasks, habits, prayers, focus, deeds, Quran</p>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleExportJSON}
+                  disabled={exportLoading !== null}
+                  className="shrink-0"
+                >
+                  {exportLoading === "json" ? (
+                    <Loader2 size={13} className="animate-spin mr-1.5" />
+                  ) : (
+                    <Download size={13} className="mr-1.5" />
+                  )}
+                  Export
+                </Button>
+              </div>
+
+              {/* CSV rows */}
+              <div className="border-t border-card-border pt-3 space-y-2">
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">CSV by category</p>
+                {[
+                  { key: "tasks",             label: "Tasks",             filename: "tasks" },
+                  { key: "habits",            label: "Habits",            filename: "habits" },
+                  { key: "habitLogs",         label: "Habit Logs",        filename: "habit-logs" },
+                  { key: "prayers",           label: "Prayer Log",        filename: "prayers" },
+                  { key: "focusSessions",     label: "Focus Sessions",    filename: "focus-sessions" },
+                  { key: "activityLogs",      label: "Deed Log",          filename: "deed-logs" },
+                ].map(({ key, label, filename }) => (
+                  <div key={key} className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <FileText size={12} className="text-muted-foreground shrink-0" />
+                      <span className="text-sm">{label}</span>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-3 text-xs shrink-0"
+                      onClick={() => handleExportCSV(key, filename)}
+                      disabled={exportLoading !== null}
+                    >
+                      {exportLoading === key ? (
+                        <Loader2 size={11} className="animate-spin mr-1" />
+                      ) : (
+                        <Download size={11} className="mr-1" />
+                      )}
+                      CSV
+                    </Button>
+                  </div>
+                ))}
+              </div>
+
+              {exportError && (
+                <p className="text-xs text-destructive bg-destructive/8 border border-destructive/20 rounded-lg px-3 py-2">
+                  {exportError}
+                </p>
+              )}
+            </div>
           </SectionCard>
 
           {/* ── About ── */}

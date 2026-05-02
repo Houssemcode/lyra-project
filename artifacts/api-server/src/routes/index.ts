@@ -10,6 +10,7 @@ import islamicRouter from "./islamic";
 import settingsRouter from "./settings";
 import gamificationRouter from "./gamification";
 import reportsRouter from "./reports";
+import exportRouter from "./export";
 
 const router: IRouter = Router();
 
@@ -24,5 +25,6 @@ router.use(islamicRouter);
 router.use(settingsRouter);
 router.use(gamificationRouter);
 router.use(reportsRouter);
+router.use(exportRouter);
 
 export default router;
