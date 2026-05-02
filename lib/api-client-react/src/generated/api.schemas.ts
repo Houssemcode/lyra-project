@@ -25,6 +25,16 @@ export const TaskPriority = {
   high: "high",
 } as const;
 
+export type TaskRecurrence =
+  (typeof TaskRecurrence)[keyof typeof TaskRecurrence];
+
+export const TaskRecurrence = {
+  none: "none",
+  daily: "daily",
+  weekly: "weekly",
+  monthly: "monthly",
+} as const;
+
 export interface Task {
   id: string;
   title: string;
@@ -41,6 +51,9 @@ export interface Task {
   tags: string[];
   /** @nullable */
   completedAt?: string | null;
+  recurrence: TaskRecurrence;
+  /** @nullable */
+  templateId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -55,6 +68,16 @@ export const CreateTaskBodyPriority = {
   high: "high",
 } as const;
 
+export type CreateTaskBodyRecurrence =
+  (typeof CreateTaskBodyRecurrence)[keyof typeof CreateTaskBodyRecurrence];
+
+export const CreateTaskBodyRecurrence = {
+  none: "none",
+  daily: "daily",
+  weekly: "weekly",
+  monthly: "monthly",
+} as const;
+
 export interface CreateTaskBody {
   title: string;
   /** @nullable */
@@ -67,6 +90,7 @@ export interface CreateTaskBody {
   /** @nullable */
   list?: string | null;
   tags?: string[];
+  recurrence?: CreateTaskBodyRecurrence;
 }
 
 export interface UpdateTaskBody {
@@ -85,6 +109,8 @@ export interface UpdateTaskBody {
   /** @nullable */
   list?: string | null;
   tags?: string[];
+  /** @nullable */
+  recurrence?: string | null;
 }
 
 export interface TodayTasksSummary {

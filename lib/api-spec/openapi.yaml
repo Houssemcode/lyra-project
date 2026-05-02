@@ -87,6 +87,21 @@ paths:
               schema:
                 $ref: "#/components/schemas/Task"
 
+  /tasks/recurring:
+    get:
+      operationId: listRecurringTasks
+      tags: [tasks]
+      summary: List recurring task templates
+      responses:
+        "200":
+          description: List of recurring task templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Task"
+
   /tasks/{id}:
     get:
       operationId: getTask
@@ -713,6 +728,11 @@ components:
             type: string
         completedAt:
           type: ["string", "null"]
+        recurrence:
+          type: string
+          enum: [none, daily, weekly, monthly]
+        templateId:
+          type: ["string", "null"]
         createdAt:
           type: string
         updatedAt:
@@ -723,6 +743,7 @@ components:
         - status
         - priority
         - tags
+        - recurrence
         - createdAt
         - updatedAt
 
@@ -746,6 +767,9 @@ components:
           type: array
           items:
             type: string
+        recurrence:
+          type: string
+          enum: [none, daily, weekly, monthly]
       required:
         - title
 
@@ -770,6 +794,8 @@ components:
           type: array
           items:
             type: string
+        recurrence:
+          type: ["string", "null"]
 
     TodayTasksSummary:
       type: object

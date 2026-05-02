@@ -321,6 +321,81 @@ export const useCreateTask = <
 };
 
 /**
+ * @summary List recurring task templates
+ */
+export const getListRecurringTasksUrl = () => {
+  return `/api/tasks/recurring`;
+};
+
+export const listRecurringTasks = async (
+  options?: RequestInit,
+): Promise<Task[]> => {
+  return customFetch<Task[]>(getListRecurringTasksUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListRecurringTasksQueryKey = () => {
+  return [`/api/tasks/recurring`] as const;
+};
+
+export const getListRecurringTasksQueryOptions = <
+  TData = Awaited<ReturnType<typeof listRecurringTasks>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listRecurringTasks>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListRecurringTasksQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listRecurringTasks>>
+  > = ({ signal }) => listRecurringTasks({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listRecurringTasks>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListRecurringTasksQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listRecurringTasks>>
+>;
+export type ListRecurringTasksQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List recurring task templates
+ */
+
+export function useListRecurringTasks<
+  TData = Awaited<ReturnType<typeof listRecurringTasks>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listRecurringTasks>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListRecurringTasksQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
  * @summary Get task by ID
  */
 export const getGetTaskUrl = (id: string) => {

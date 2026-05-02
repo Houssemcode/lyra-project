@@ -13,6 +13,8 @@ export const tasksTable = pgTable("tasks", {
   list: text("list"),
   tags: text("tags").array().notNull().default([]),
   completedAt: timestamp("completed_at", { withTimezone: true }),
+  recurrence: text("recurrence", { enum: ["none", "daily", "weekly", "monthly"] }).notNull().default("none"),
+  templateId: uuid("template_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

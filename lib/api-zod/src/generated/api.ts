@@ -43,6 +43,8 @@ export const ListTasksResponseItem = zod.object({
   list: zod.string().nullish(),
   tags: zod.array(zod.string()),
   completedAt: zod.string().nullish(),
+  recurrence: zod.enum(["none", "daily", "weekly", "monthly"]),
+  templateId: zod.string().nullish(),
   createdAt: zod.string(),
   updatedAt: zod.string(),
 });
@@ -59,7 +61,31 @@ export const CreateTaskBody = zod.object({
   dueTime: zod.string().nullish(),
   list: zod.string().nullish(),
   tags: zod.array(zod.string()).optional(),
+  recurrence: zod.enum(["none", "daily", "weekly", "monthly"]).optional(),
 });
+
+/**
+ * @summary List recurring task templates
+ */
+export const ListRecurringTasksResponseItem = zod.object({
+  id: zod.string(),
+  title: zod.string(),
+  description: zod.string().nullish(),
+  status: zod.enum(["pending", "done"]),
+  priority: zod.enum(["none", "low", "medium", "high"]),
+  dueDate: zod.string().nullish(),
+  dueTime: zod.string().nullish(),
+  list: zod.string().nullish(),
+  tags: zod.array(zod.string()),
+  completedAt: zod.string().nullish(),
+  recurrence: zod.enum(["none", "daily", "weekly", "monthly"]),
+  templateId: zod.string().nullish(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+export const ListRecurringTasksResponse = zod.array(
+  ListRecurringTasksResponseItem,
+);
 
 /**
  * @summary Get task by ID
@@ -79,6 +105,8 @@ export const GetTaskResponse = zod.object({
   list: zod.string().nullish(),
   tags: zod.array(zod.string()),
   completedAt: zod.string().nullish(),
+  recurrence: zod.enum(["none", "daily", "weekly", "monthly"]),
+  templateId: zod.string().nullish(),
   createdAt: zod.string(),
   updatedAt: zod.string(),
 });
@@ -99,6 +127,7 @@ export const UpdateTaskBody = zod.object({
   dueTime: zod.string().nullish(),
   list: zod.string().nullish(),
   tags: zod.array(zod.string()).optional(),
+  recurrence: zod.string().nullish(),
 });
 
 export const UpdateTaskResponse = zod.object({
@@ -112,6 +141,8 @@ export const UpdateTaskResponse = zod.object({
   list: zod.string().nullish(),
   tags: zod.array(zod.string()),
   completedAt: zod.string().nullish(),
+  recurrence: zod.enum(["none", "daily", "weekly", "monthly"]),
+  templateId: zod.string().nullish(),
   createdAt: zod.string(),
   updatedAt: zod.string(),
 });
@@ -143,6 +174,8 @@ export const GetTodayTasksResponse = zod.object({
       list: zod.string().nullish(),
       tags: zod.array(zod.string()),
       completedAt: zod.string().nullish(),
+      recurrence: zod.enum(["none", "daily", "weekly", "monthly"]),
+      templateId: zod.string().nullish(),
       createdAt: zod.string(),
       updatedAt: zod.string(),
     }),
