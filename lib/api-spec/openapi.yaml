@@ -24,6 +24,8 @@ tags:
     description: Daily summary for automation
   - name: islamic
     description: Islamic life module (Quran tracker, deeds catalog)
+  - name: settings
+    description: User settings and preferences
 paths:
   /healthz:
     get:
@@ -689,6 +691,37 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DailySummary"
+
+  # ─── SETTINGS ────────────────────────────────────────────────────────────────
+  /settings:
+    get:
+      operationId: getSettings
+      tags: [settings]
+      summary: Get user settings (auto-creates defaults on first call)
+      responses:
+        "200":
+          description: User settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserSettings"
+    patch:
+      operationId: updateSettings
+      tags: [settings]
+      summary: Update user settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSettingsBody"
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserSettings"
 
 components:
   schemas:
@@ -1489,4 +1522,45 @@ components:
         hijriDate:
           type: ["string", "null"]
         notes:
+          type: ["string", "null"]
+
+    # ─── SETTINGS SCHEMAS ────────────────────────────────────────────────────────
+    UserSettings:
+      type: object
+      properties:
+        id:
+          type: string
+        displayName:
+          type: ["string", "null"]
+        prayerMethod:
+          type: string
+          enum: [MuslimWorldLeague, NorthAmerica, Egyptian, Karachi, UmmAlQura, Gulf, MoonsightingCommittee, Kuwait, Qatar, Singapore, Tehran, Turkey]
+        prayerMadhab:
+          type: string
+          enum: [Shafi, Hanafi]
+        timeFormat:
+          type: string
+          enum: ["12h", "24h"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - prayerMethod
+        - prayerMadhab
+        - timeFormat
+        - createdAt
+        - updatedAt
+
+    UpdateSettingsBody:
+      type: object
+      properties:
+        displayName:
+          type: ["string", "null"]
+        prayerMethod:
+          type: ["string", "null"]
+        prayerMadhab:
+          type: ["string", "null"]
+        timeFormat:
           type: ["string", "null"]

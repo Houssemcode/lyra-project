@@ -721,3 +721,62 @@ export const GetDailySummaryResponse = zod.object({
     }),
   ),
 });
+
+/**
+ * @summary Get user settings (auto-creates defaults on first call)
+ */
+export const GetSettingsResponse = zod.object({
+  id: zod.string(),
+  displayName: zod.string().nullish(),
+  prayerMethod: zod.enum([
+    "MuslimWorldLeague",
+    "NorthAmerica",
+    "Egyptian",
+    "Karachi",
+    "UmmAlQura",
+    "Gulf",
+    "MoonsightingCommittee",
+    "Kuwait",
+    "Qatar",
+    "Singapore",
+    "Tehran",
+    "Turkey",
+  ]),
+  prayerMadhab: zod.enum(["Shafi", "Hanafi"]),
+  timeFormat: zod.enum(["12h", "24h"]),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+
+/**
+ * @summary Update user settings
+ */
+export const UpdateSettingsBody = zod.object({
+  displayName: zod.string().nullish(),
+  prayerMethod: zod.string().nullish(),
+  prayerMadhab: zod.string().nullish(),
+  timeFormat: zod.string().nullish(),
+});
+
+export const UpdateSettingsResponse = zod.object({
+  id: zod.string(),
+  displayName: zod.string().nullish(),
+  prayerMethod: zod.enum([
+    "MuslimWorldLeague",
+    "NorthAmerica",
+    "Egyptian",
+    "Karachi",
+    "UmmAlQura",
+    "Gulf",
+    "MoonsightingCommittee",
+    "Kuwait",
+    "Qatar",
+    "Singapore",
+    "Tehran",
+    "Turkey",
+  ]),
+  prayerMadhab: zod.enum(["Shafi", "Hanafi"]),
+  timeFormat: zod.enum(["12h", "24h"]),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});

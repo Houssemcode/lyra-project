@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, CheckSquare, Flame, CalendarDays, Moon, Timer, BarChart3, Menu, X, Star } from "lucide-react";
+import { LayoutDashboard, CheckSquare, Flame, CalendarDays, Moon, Timer, BarChart3, Menu, X, Star, Settings } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -60,8 +60,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </nav>
 
         {/* Footer */}
-        <div className="px-5 py-4 border-t border-sidebar-border">
-          <p className="text-xs text-sidebar-foreground/40">Lyra v1.2</p>
+        <div className="px-3 py-3 border-t border-sidebar-border">
+          <Link
+            href="/settings"
+            onClick={() => setMobileOpen(false)}
+            data-testid="nav-settings"
+            className={cn(
+              "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer w-full",
+              location === "/settings"
+                ? "bg-sidebar-primary/15 text-primary"
+                : "text-sidebar-foreground/50 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+            )}
+          >
+            <Settings size={16} className={location === "/settings" ? "text-primary" : "text-sidebar-foreground/40"} />
+            Settings
+          </Link>
         </div>
       </aside>
 

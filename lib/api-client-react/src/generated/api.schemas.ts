@@ -645,6 +645,62 @@ export interface LogDeedBody {
   notes?: string | null;
 }
 
+export type UserSettingsPrayerMethod =
+  (typeof UserSettingsPrayerMethod)[keyof typeof UserSettingsPrayerMethod];
+
+export const UserSettingsPrayerMethod = {
+  MuslimWorldLeague: "MuslimWorldLeague",
+  NorthAmerica: "NorthAmerica",
+  Egyptian: "Egyptian",
+  Karachi: "Karachi",
+  UmmAlQura: "UmmAlQura",
+  Gulf: "Gulf",
+  MoonsightingCommittee: "MoonsightingCommittee",
+  Kuwait: "Kuwait",
+  Qatar: "Qatar",
+  Singapore: "Singapore",
+  Tehran: "Tehran",
+  Turkey: "Turkey",
+} as const;
+
+export type UserSettingsPrayerMadhab =
+  (typeof UserSettingsPrayerMadhab)[keyof typeof UserSettingsPrayerMadhab];
+
+export const UserSettingsPrayerMadhab = {
+  Shafi: "Shafi",
+  Hanafi: "Hanafi",
+} as const;
+
+export type UserSettingsTimeFormat =
+  (typeof UserSettingsTimeFormat)[keyof typeof UserSettingsTimeFormat];
+
+export const UserSettingsTimeFormat = {
+  "12h": "12h",
+  "24h": "24h",
+} as const;
+
+export interface UserSettings {
+  id: string;
+  /** @nullable */
+  displayName?: string | null;
+  prayerMethod: UserSettingsPrayerMethod;
+  prayerMadhab: UserSettingsPrayerMadhab;
+  timeFormat: UserSettingsTimeFormat;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UpdateSettingsBody {
+  /** @nullable */
+  displayName?: string | null;
+  /** @nullable */
+  prayerMethod?: string | null;
+  /** @nullable */
+  prayerMadhab?: string | null;
+  /** @nullable */
+  timeFormat?: string | null;
+}
+
 export type ListTasksParams = {
   /**
    * Filter by due date (YYYY-MM-DD)

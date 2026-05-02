@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, prayersTable } from "@workspace/db";
+import { db, prayersTable, userSettingsTable } from "@workspace/db";
 import {
   ListPrayersQueryParams,
   ListPrayersResponse,
@@ -35,13 +35,23 @@ router.post("/prayers/calculate", async (req, res): Promise<void> => {
   const targetDate = dateStr ?? new Date().toISOString().split("T")[0];
   const calcDate = new Date(targetDate + "T12:00:00");
 
+  // Fetch user settings to get preferred calculation method and madhab
+  const settingsRows = await db.select().from(userSettingsTable).limit(1);
+  const settings = settingsRows[0];
+  const methodName = settings?.prayerMethod ?? "MoonsightingCommittee";
+  const madhabName = settings?.prayerMadhab ?? "Shafi";
+
   let times: Record<string, string>;
   try {
-    // Dynamic import of adhan (ESM)
     const adhan = await import("adhan");
     const coords = new adhan.Coordinates(latitude, longitude);
-    const params = adhan.CalculationMethod.MoonsightingCommittee();
-    const pt = new adhan.PrayerTimes(coords, calcDate, params);
+    // Resolve calculation method
+    type CalcParams = ReturnType<typeof adhan.CalculationMethod.MoonsightingCommittee>;
+    const calcMethods = adhan.CalculationMethod as Record<string, (() => CalcParams) | undefined>;
+    const calcParams = calcMethods[methodName]?.() ?? adhan.CalculationMethod.MoonsightingCommittee();
+    // Apply madhab
+    calcParams.madhab = madhabName === "Hanafi" ? adhan.Madhab.Hanafi : adhan.Madhab.Shafi;
+    const pt = new adhan.PrayerTimes(coords, calcDate, calcParams);
     const fmt = (d: Date) => d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
     times = {
       Fajr: fmt(pt.fajr),
