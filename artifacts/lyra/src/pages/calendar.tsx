@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { motion } from "framer-motion";
 import {
   useListEvents,
   useCreateEvent,
@@ -146,9 +147,12 @@ export default function Calendar() {
                 {isLoading ? (
                   <Skeleton className="h-8 w-full" />
                 ) : (
-                  dayEvents.map((event) => (
-                    <div
+                  dayEvents.map((event, i) => (
+                    <motion.div
                       key={event.id}
+                      initial={{ opacity: 0, scale: 0.93 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ duration: 0.15, delay: i * 0.04 }}
                       className={`group mb-1.5 px-2 py-1.5 rounded-lg text-xs cursor-default ${
                         event.source === "prayer" ? "bg-indigo-500/15 text-indigo-300" :
                         event.source === "task" ? "bg-orange-500/15 text-orange-300" :
@@ -173,7 +177,7 @@ export default function Calendar() {
                           </button>
                         )}
                       </div>
-                    </div>
+                    </motion.div>
                   ))
                 )}
               </div>

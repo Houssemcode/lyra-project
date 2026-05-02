@@ -8,13 +8,14 @@ import {
   getListFocusSessionsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Play, Pause, RotateCcw, Timer, Trash2, Coffee } from "lucide-react";
+import { Play, Pause, RotateCcw, Timer, Trash2, Coffee, AlarmClock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type Phase = "work" | "break";
 
@@ -271,10 +272,23 @@ export default function Focus() {
         <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Today's Sessions</h2>
         {sessionsLoading ? (
           <div className="space-y-2">
-            {[1, 2].map((i) => <Skeleton key={i} className="h-14 w-full" />)}
+            {[1, 2].map((i) => (
+              <div key={i} className="flex items-center gap-3 px-4 py-3 bg-card border border-card-border rounded-xl">
+                <Skeleton className="h-2 w-2 rounded-full shrink-0" />
+                <div className="flex-1 space-y-1.5">
+                  <Skeleton className="h-3.5 w-1/3" />
+                  <Skeleton className="h-2.5 w-1/2" />
+                </div>
+              </div>
+            ))}
           </div>
         ) : sessions?.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-6">No sessions logged today. Start the timer above!</p>
+          <EmptyState
+            icon={<AlarmClock size={22} />}
+            title="No sessions yet today"
+            description="Start the timer above to log your first focus session"
+            size="sm"
+          />
         ) : (
           <div className="space-y-2">
             {sessions?.map((s) => (

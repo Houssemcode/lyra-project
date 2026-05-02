@@ -132,7 +132,19 @@ export default function Habits() {
 
       {isLoading ? (
         <div className="space-y-2">
-          {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-16 w-full" />)}
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="flex items-center gap-3 px-4 py-3.5 bg-card border border-card-border rounded-xl">
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-3.5 w-2/5" />
+                <Skeleton className="h-2.5 w-1/4" />
+              </div>
+              <div className="flex gap-1.5">
+                <Skeleton className="h-7 w-7 rounded-lg" />
+                <Skeleton className="h-7 w-7 rounded-lg" />
+                <Skeleton className="h-7 w-7 rounded-lg" />
+              </div>
+            </div>
+          ))}
         </div>
       ) : (
         <div className="space-y-6">

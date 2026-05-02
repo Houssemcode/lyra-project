@@ -1,6 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { LayoutDashboard, CheckSquare, Flame, CalendarDays, Moon, Timer, BarChart3, Menu, X, Star, Settings, Trophy, FileText } from "lucide-react";
 import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -102,9 +103,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <span className="font-semibold" style={{ fontFamily: "var(--app-font-display)" }}>Lyra</span>
         </header>
 
-        {/* Page content */}
+        {/* Page content — animated on route change */}
         <main className="flex-1 overflow-y-auto">
-          {children}
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={location}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="min-h-full"
+            >
+              {children}
+            </motion.div>
+          </AnimatePresence>
         </main>
       </div>
     </div>
