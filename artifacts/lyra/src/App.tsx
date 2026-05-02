@@ -13,6 +13,7 @@ import Focus from "@/pages/focus";
 import Summary from "@/pages/summary";
 import Islamic from "@/pages/islamic";
 import Settings from "@/pages/settings";
+import Progress from "@/pages/progress";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
@@ -37,6 +38,7 @@ function Router() {
         <Route path="/summary" component={Summary} />
         <Route path="/islamic" component={Islamic} />
         <Route path="/settings" component={Settings} />
+        <Route path="/progress" component={Progress} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

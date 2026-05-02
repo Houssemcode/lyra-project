@@ -146,6 +146,7 @@ export interface Habit {
   timeOfDay: HabitTimeOfDay;
   type: HabitType;
   streak: number;
+  bestStreak: number;
   isArchived: boolean;
   createdAt: string;
 }
@@ -245,6 +246,7 @@ export interface HabitWithStatus {
   timeOfDay: HabitWithStatusTimeOfDay;
   type: HabitWithStatusType;
   streak: number;
+  bestStreak: number;
   isArchived: boolean;
   createdAt: string;
   /** @nullable */
@@ -699,6 +701,32 @@ export interface UpdateSettingsBody {
   prayerMadhab?: string | null;
   /** @nullable */
   timeFormat?: string | null;
+}
+
+export interface HabitStreakItem {
+  habitId: string;
+  name: string;
+  streak: number;
+  bestStreak: number;
+}
+
+export interface TodayScore {
+  total: number;
+  tasks: number;
+  habits: number;
+  prayers: number;
+  focus: number;
+  islamic: number;
+}
+
+export interface GamificationSummary {
+  level: number;
+  totalXp: number;
+  currentLevelXp: number;
+  nextLevelXp: number;
+  todayScore: TodayScore;
+  weeklyXp: number;
+  habitStreaks: HabitStreakItem[];
 }
 
 export type ListTasksParams = {

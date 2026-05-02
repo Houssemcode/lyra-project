@@ -192,6 +192,7 @@ export const ListHabitsResponseItem = zod.object({
   timeOfDay: zod.enum(["morning", "afternoon", "evening", "anytime"]),
   type: zod.enum(["positive", "negative"]),
   streak: zod.number(),
+  bestStreak: zod.number(),
   isArchived: zod.boolean(),
   createdAt: zod.string(),
 });
@@ -230,6 +231,7 @@ export const UpdateHabitResponse = zod.object({
   timeOfDay: zod.enum(["morning", "afternoon", "evening", "anytime"]),
   type: zod.enum(["positive", "negative"]),
   streak: zod.number(),
+  bestStreak: zod.number(),
   isArchived: zod.boolean(),
   createdAt: zod.string(),
 });
@@ -271,6 +273,7 @@ export const GetTodayHabitsResponseItem = zod.object({
   timeOfDay: zod.enum(["morning", "afternoon", "evening", "anytime"]),
   type: zod.enum(["positive", "negative"]),
   streak: zod.number(),
+  bestStreak: zod.number(),
   isArchived: zod.boolean(),
   createdAt: zod.string(),
   todayStatus: zod.string().nullish(),
@@ -718,6 +721,33 @@ export const GetDailySummaryResponse = zod.object({
       category: zod.string().nullish(),
       source: zod.enum(["native", "task", "prayer"]),
       createdAt: zod.string(),
+    }),
+  ),
+});
+
+/**
+ * @summary Get XP, level, today's score breakdown, and habit streaks
+ */
+export const GetGamificationSummaryResponse = zod.object({
+  level: zod.number(),
+  totalXp: zod.number(),
+  currentLevelXp: zod.number(),
+  nextLevelXp: zod.number(),
+  todayScore: zod.object({
+    total: zod.number(),
+    tasks: zod.number(),
+    habits: zod.number(),
+    prayers: zod.number(),
+    focus: zod.number(),
+    islamic: zod.number(),
+  }),
+  weeklyXp: zod.number(),
+  habitStreaks: zod.array(
+    zod.object({
+      habitId: zod.string(),
+      name: zod.string(),
+      streak: zod.number(),
+      bestStreak: zod.number(),
     }),
   ),
 });

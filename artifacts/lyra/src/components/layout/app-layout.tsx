@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, CheckSquare, Flame, CalendarDays, Moon, Timer, BarChart3, Menu, X, Star, Settings } from "lucide-react";
+import { LayoutDashboard, CheckSquare, Flame, CalendarDays, Moon, Timer, BarChart3, Menu, X, Star, Settings, Trophy } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -12,6 +12,7 @@ const navItems = [
   { href: "/focus", label: "Focus", icon: Timer },
   { href: "/summary", label: "Summary", icon: BarChart3 },
   { href: "/islamic", label: "Islamic Life", icon: Star },
+  { href: "/progress", label: "Progress", icon: Trophy },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {

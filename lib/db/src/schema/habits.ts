@@ -9,6 +9,7 @@ export const habitsTable = pgTable("habits", {
   timeOfDay: text("time_of_day", { enum: ["morning", "afternoon", "evening", "anytime"] }).notNull().default("anytime"),
   type: text("type", { enum: ["positive", "negative"] }).notNull().default("positive"),
   streak: integer("streak").notNull().default(0),
+  bestStreak: integer("best_streak").notNull().default(0),
   isArchived: boolean("is_archived").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

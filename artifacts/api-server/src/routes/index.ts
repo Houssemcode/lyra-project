@@ -8,6 +8,7 @@ import focusRouter from "./focus";
 import dailySummaryRouter from "./daily-summary";
 import islamicRouter from "./islamic";
 import settingsRouter from "./settings";
+import gamificationRouter from "./gamification";
 
 const router: IRouter = Router();
 
@@ -20,5 +21,6 @@ router.use(focusRouter);
 router.use(dailySummaryRouter);
 router.use(islamicRouter);
 router.use(settingsRouter);
+router.use(gamificationRouter);
 
 export default router;

@@ -28,6 +28,7 @@ import type {
   DailySummary,
   FocusSession,
   FocusStats,
+  GamificationSummary,
   GetDailySummaryParams,
   Habit,
   HabitLog,
@@ -2954,6 +2955,82 @@ export function useGetDailySummary<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetDailySummaryQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get XP, level, today's score breakdown, and habit streaks
+ */
+export const getGetGamificationSummaryUrl = () => {
+  return `/api/gamification`;
+};
+
+export const getGamificationSummary = async (
+  options?: RequestInit,
+): Promise<GamificationSummary> => {
+  return customFetch<GamificationSummary>(getGetGamificationSummaryUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetGamificationSummaryQueryKey = () => {
+  return [`/api/gamification`] as const;
+};
+
+export const getGetGamificationSummaryQueryOptions = <
+  TData = Awaited<ReturnType<typeof getGamificationSummary>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getGamificationSummary>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetGamificationSummaryQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getGamificationSummary>>
+  > = ({ signal }) => getGamificationSummary({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getGamificationSummary>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetGamificationSummaryQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getGamificationSummary>>
+>;
+export type GetGamificationSummaryQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get XP, level, today's score breakdown, and habit streaks
+ */
+
+export function useGetGamificationSummary<
+  TData = Awaited<ReturnType<typeof getGamificationSummary>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getGamificationSummary>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetGamificationSummaryQueryOptions(options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

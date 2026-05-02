@@ -147,36 +147,59 @@ router.post("/habits/:id/log", async (req, res): Promise<void> => {
     })
     .returning();
 
-  // Recalculate streak if completed
-  if (parsed.data.status === "completed") {
-    const logs = await db
-      .select()
-      .from(habitLogsTable)
-      .where(
-        and(
-          eq(habitLogsTable.habitId, params.data.id),
-          eq(habitLogsTable.status, "completed")
-        )
+  // Recalculate streak and bestStreak when completed or missed/skipped
+  const completedLogs = await db
+    .select({ date: habitLogsTable.date })
+    .from(habitLogsTable)
+    .where(
+      and(
+        eq(habitLogsTable.habitId, params.data.id),
+        eq(habitLogsTable.status, "completed")
       )
-      .orderBy(desc(habitLogsTable.date));
+    )
+    .orderBy(desc(habitLogsTable.date));
 
-    let streak = 0;
-    const today = new Date();
-    for (let i = 0; i < logs.length; i++) {
-      const expected = new Date(today);
-      expected.setDate(today.getDate() - i);
-      const expectedStr = expected.toISOString().split("T")[0];
-      if (logs[i].date === expectedStr) {
-        streak++;
-      } else {
-        break;
-      }
+  // Current streak: consecutive days from today backwards
+  let streak = 0;
+  const today = new Date();
+  for (let i = 0; i < completedLogs.length; i++) {
+    const expected = new Date(today);
+    expected.setDate(today.getDate() - i);
+    const expectedStr = expected.toISOString().split("T")[0];
+    if (completedLogs[i]!.date === expectedStr) {
+      streak++;
+    } else {
+      break;
     }
-    await db
-      .update(habitsTable)
-      .set({ streak })
-      .where(eq(habitsTable.id, params.data.id));
   }
+
+  // Best streak: longest run of consecutive completed days
+  const sortedAsc = [...completedLogs].reverse();
+  let bestRun = streak > 0 ? streak : (sortedAsc.length > 0 ? 1 : 0);
+  let run = sortedAsc.length > 0 ? 1 : 0;
+  for (let i = 1; i < sortedAsc.length; i++) {
+    const prev = new Date(sortedAsc[i - 1]!.date + "T00:00:00Z");
+    const curr = new Date(sortedAsc[i]!.date + "T00:00:00Z");
+    const diff = Math.round((curr.getTime() - prev.getTime()) / 86400000);
+    if (diff === 1) {
+      run++;
+      bestRun = Math.max(bestRun, run);
+    } else {
+      run = 1;
+    }
+  }
+
+  const [existing] = await db
+    .select({ bestStreak: habitsTable.bestStreak })
+    .from(habitsTable)
+    .where(eq(habitsTable.id, params.data.id));
+
+  const newBestStreak = Math.max(existing?.bestStreak ?? 0, bestRun);
+
+  await db
+    .update(habitsTable)
+    .set({ streak, bestStreak: newBestStreak })
+    .where(eq(habitsTable.id, params.data.id));
 
   res.json(
     LogHabitResponse.parse({
