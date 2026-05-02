@@ -665,6 +665,14 @@ export const GetDailySummaryResponse = zod.object({
     totalSessions: zod.number(),
     completedSessions: zod.number(),
   }),
+  islamic: zod.object({
+    deedsTotal: zod.number(),
+    deedsCompleted: zod.number(),
+    completedDeedNames: zod.array(zod.string()),
+    quranPage: zod.number().nullish(),
+    quranPercent: zod.number().nullish(),
+    quranPagesReadToday: zod.number(),
+  }),
   events: zod.array(
     zod.object({
       id: zod.string(),

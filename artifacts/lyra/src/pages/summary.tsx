@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useGetDailySummary, getGetDailySummaryQueryKey } from "@workspace/api-client-react";
-import { CheckCircle2, Flame, Moon, Timer, CalendarDays, BarChart3, RefreshCw } from "lucide-react";
+import { CheckCircle2, Flame, Moon, Timer, CalendarDays, BarChart3, RefreshCw, Star, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
@@ -130,6 +130,37 @@ export default function Summary() {
                 <p className="text-xs text-muted-foreground">
                   {Math.floor(data.focus.totalMinutes / 60)}h {data.focus.totalMinutes % 60}m of deep work logged
                 </p>
+              </div>
+            )}
+          </SummaryCard>
+
+          {/* Islamic card */}
+          <SummaryCard
+            icon={<Star size={18} className="text-amber-400" />}
+            title="Islamic Life"
+            accent="amber"
+          >
+            <div className="grid grid-cols-2 gap-3">
+              <Metric label="Deeds completed" value={data.islamic.deedsCompleted} highlight />
+              <Metric label="Deeds available" value={data.islamic.deedsTotal} />
+            </div>
+            {data.islamic.completedDeedNames.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-border">
+                <p className="text-xs text-muted-foreground mb-1.5">Completed deeds</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {data.islamic.completedDeedNames.map((n, i) => (
+                    <span key={i} className="text-xs bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded-full">{n}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {(data.islamic.quranPage !== null && data.islamic.quranPage !== undefined) && (
+              <div className="mt-3 pt-3 border-t border-border flex items-center gap-3">
+                <BookOpen size={14} className="text-teal-400 shrink-0" />
+                <span className="text-xs text-muted-foreground flex-1">
+                  Khatmah at page {data.islamic.quranPage}
+                  {data.islamic.quranPercent !== null && ` · ${data.islamic.quranPercent}% complete`}
+                </span>
               </div>
             )}
           </SummaryCard>

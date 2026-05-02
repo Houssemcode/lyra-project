@@ -1,28 +1,65 @@
-import { useGetTodayTasks, useGetTodayHabits, useListPrayers, useGetFocusStats, useListEvents } from "@workspace/api-client-react";
-import { CheckCircle2, Circle, Flame, Moon, Timer, CalendarDays, ChevronRight } from "lucide-react";
+import {
+  useGetTodayTasks,
+  useGetTodayHabits,
+  useListPrayers,
+  useGetFocusStats,
+  useListEvents,
+  useGetQuranProgress,
+  useListDeedLogs,
+  useListDeeds,
+} from "@workspace/api-client-react";
+import { CheckCircle2, Circle, Flame, Moon, Timer, CalendarDays, ChevronRight, Star, BookOpen } from "lucide-react";
 import { Link } from "wouter";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
+
+function getHijriDate(): string {
+  return new Intl.DateTimeFormat("en-u-ca-islamic", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(new Date());
+}
+
+function getGreeting(): string {
+  const h = new Date().getHours();
+  if (h < 5) return "As-salamu alaykum";
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  if (h < 21) return "Good evening";
+  return "Good night";
+}
 
 export default function Home() {
   const today = format(new Date(), "yyyy-MM-dd");
+
   const { data: todayTasks, isLoading: tasksLoading } = useGetTodayTasks();
   const { data: todayHabits, isLoading: habitsLoading } = useGetTodayHabits();
   const { data: prayers, isLoading: prayersLoading } = useListPrayers({ date: today });
   const { data: focusStats, isLoading: focusLoading } = useGetFocusStats();
   const { data: events, isLoading: eventsLoading } = useListEvents({ start: today, end: today });
+  const { data: quran } = useGetQuranProgress();
+  const { data: todayLogs } = useListDeedLogs({ date: today });
+  const { data: todayDeeds } = useListDeeds({ todayOnly: true });
 
   const prayersDone = prayers?.filter((p) => p.status === "on_time" || p.status === "late").length ?? 0;
   const habitsCompleted = todayHabits?.filter((h) => h.todayStatus === "completed").length ?? 0;
   const todayEvents = events?.slice(0, 3) ?? [];
+  const deedsCompleted = todayLogs?.length ?? 0;
+  const deedsTotal = todayDeeds?.length ?? 0;
+  const hijri = getHijriDate();
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
       {/* Header */}
       <div>
         <p className="text-sm text-muted-foreground">{format(new Date(), "EEEE, MMMM d, yyyy")}</p>
-        <h1 className="text-2xl font-bold mt-0.5" style={{ fontFamily: "var(--app-font-display)" }}>Good day</h1>
+        <div className="flex items-end justify-between flex-wrap gap-2">
+          <h1 className="text-2xl font-bold mt-0.5" style={{ fontFamily: "var(--app-font-display)" }}>
+            {getGreeting()}
+          </h1>
+          <span className="text-xs text-muted-foreground/70 pb-0.5">{hijri}</span>
+        </div>
       </div>
 
       {/* Stats row */}
@@ -160,8 +197,77 @@ export default function Home() {
           )}
         </div>
 
+        {/* Islamic Life snapshot */}
+        <Link href="/islamic">
+          <div className="bg-card border border-card-border rounded-xl p-5 hover:border-primary/30 transition-colors cursor-pointer h-full" data-testid="islamic-snapshot">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Islamic Life</h2>
+              <span className="text-xs text-primary flex items-center gap-0.5">
+                Open <ChevronRight size={12} />
+              </span>
+            </div>
+
+            <div className="space-y-3">
+              {/* Deeds progress */}
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-amber-500/15 flex items-center justify-center shrink-0">
+                  <Star size={15} className="text-amber-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium">Today's Deeds</p>
+                  <p className="text-xs text-muted-foreground">
+                    {deedsCompleted} of {deedsTotal} completed
+                  </p>
+                </div>
+                {deedsTotal > 0 && (
+                  <div className="text-right">
+                    <span className="text-sm font-semibold text-primary">
+                      {Math.round((deedsCompleted / deedsTotal) * 100)}%
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Deed progress bar */}
+              {deedsTotal > 0 && (
+                <div className="w-full bg-muted rounded-full h-1.5">
+                  <div
+                    className="bg-primary h-1.5 rounded-full transition-all duration-500"
+                    style={{ width: `${Math.round((deedsCompleted / deedsTotal) * 100)}%` }}
+                  />
+                </div>
+              )}
+
+              {/* Quran progress */}
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-teal-500/15 flex items-center justify-center shrink-0">
+                  <BookOpen size={15} className="text-teal-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  {quran ? (
+                    <>
+                      <p className="text-sm font-medium">Khatmah — Page {quran.currentPage}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {quran.percentComplete}% complete · {quran.pagesLeft} pages left
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm font-medium text-muted-foreground">Khatmah not started</p>
+                      <p className="text-xs text-muted-foreground">Tap to begin your reading journey</p>
+                    </>
+                  )}
+                </div>
+                {quran && (
+                  <span className="text-sm font-semibold text-teal-400">{quran.percentComplete}%</span>
+                )}
+              </div>
+            </div>
+          </div>
+        </Link>
+
         {/* Today's events */}
-        <div className="bg-card border border-card-border rounded-xl p-5">
+        <div className="bg-card border border-card-border rounded-xl p-5 lg:col-span-2">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Today's Events</h2>
             <Link href="/calendar" className="text-xs text-primary hover:underline flex items-center gap-0.5">
@@ -175,7 +281,7 @@ export default function Home() {
           ) : todayEvents.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">No events today</p>
           ) : (
-            <div className="space-y-2">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {todayEvents.map((event) => (
                 <div key={event.id} className="flex items-start gap-3 py-2 border-l-2 border-primary/40 pl-3" data-testid={`event-${event.id}`}>
                   <div>

@@ -49,6 +49,18 @@ function getHijriDate(): { full: string; day: number; month: number; year: numbe
   };
 }
 
+// ─── Special Hijri months ─────────────────────────────────────────────────────
+const HIJRI_MONTH_BANNERS: Record<number, { label: string; desc: string; color: string; bg: string; border: string }> = {
+  1:  { label: "Muharram", desc: "One of the four sacred months — fasting on Ashura (10th) expiates the previous year", color: "text-violet-400", bg: "bg-violet-500/10", border: "border-violet-500/25" },
+  3:  { label: "Rabi' Al-Awwal", desc: "The month of the Prophet's ﷺ birth — increase salah upon him abundantly", color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/25" },
+  7:  { label: "Rajab", desc: "One of the four sacred months — a gateway to Ramadan, increase istighfar and voluntary fasts", color: "text-blue-400", bg: "bg-blue-500/10", border: "border-blue-500/25" },
+  8:  { label: "Sha'ban", desc: "The month before Ramadan — the Prophet ﷺ fasted most of it and our deeds are raised to Allah", color: "text-indigo-400", bg: "bg-indigo-500/10", border: "border-indigo-500/25" },
+  9:  { label: "Ramadan", desc: "The blessed month of fasting, Quran, and Laylat Al-Qadr — the best month of the year", color: "text-amber-400", bg: "bg-amber-500/10", border: "border-amber-500/25" },
+  10: { label: "Shawwal", desc: "Eid Al-Fitr and the six voluntary fasts of Shawwal — fasting them equals a full year", color: "text-rose-400", bg: "bg-rose-500/10", border: "border-rose-500/25" },
+  11: { label: "Dhul Qa'dah", desc: "One of the four sacred months — refrain from wrongdoing and increase worship", color: "text-purple-400", bg: "bg-purple-500/10", border: "border-purple-500/25" },
+  12: { label: "Dhul Hijjah", desc: "The first 10 days are the best days of the year — fast on Arafah (9th) to expiate two years", color: "text-teal-400", bg: "bg-teal-500/10", border: "border-teal-500/25" },
+};
+
 const categoryIcons: Record<string, React.ReactNode> = {
   "prayer": <Sun size={15} className="text-yellow-400" />,
   "fasting": <Moon size={15} className="text-indigo-400" />,
@@ -96,7 +108,7 @@ export default function Islamic() {
   const [initSurah, setInitSurah] = useState(1);
   const [initTarget, setInitTarget] = useState("");
 
-  const { data: quran, isLoading: quranLoading } = useGetQuranProgress({ query: { retry: false } });
+  const { data: quran, isLoading: quranLoading } = useGetQuranProgress();
   const { data: allDeeds, isLoading: deedsLoading } = useListDeeds();
   const { data: todayDeeds } = useListDeeds({ todayOnly: true });
   const { data: todayLogs, isLoading: logsLoading } = useListDeedLogs({ date: today });
@@ -169,6 +181,8 @@ export default function Islamic() {
 
   const categoryOrder = ["jumu'ah", "dhikr", "prayer", "quran", "fasting", "charity", "sunnah", "other"];
 
+  const monthBanner = HIJRI_MONTH_BANNERS[hijri.month];
+
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
       {/* Header with Hijri date */}
@@ -196,6 +210,22 @@ export default function Islamic() {
           <MapPin size={13} className="mr-1.5" /> Calculate Prayer Times
         </Button>
       </div>
+
+      {/* Special Hijri month banner */}
+      {monthBanner && (
+        <motion.div
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`${monthBanner.bg} border ${monthBanner.border} rounded-2xl p-4 flex items-start gap-3`}
+          data-testid="hijri-month-banner"
+        >
+          <Star size={16} className={`${monthBanner.color} shrink-0 mt-0.5`} />
+          <div>
+            <p className={`text-sm font-semibold ${monthBanner.color}`}>{monthBanner.label}</p>
+            <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{monthBanner.desc}</p>
+          </div>
+        </motion.div>
+      )}
 
       <div className="grid lg:grid-cols-2 gap-5">
         {/* ─── Quran Khatmah Tracker ──────────────────────────────────────────── */}

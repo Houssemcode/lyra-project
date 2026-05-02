@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   useListPrayers,
   useUpdatePrayer,
@@ -6,11 +6,12 @@ import {
   getListPrayersQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Moon, Clock, CheckCircle2, AlertCircle, XCircle, Circle } from "lucide-react";
+import { Moon, Clock, CheckCircle2, XCircle, Circle, MapPin, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { format } from "date-fns";
+import { format, parse, isAfter } from "date-fns";
 import { motion } from "framer-motion";
+import { Link } from "wouter";
 
 const PRAYER_ORDER = ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"] as const;
 
@@ -21,6 +22,41 @@ const statusConfig = {
   missed: { label: "Missed", icon: XCircle, color: "text-destructive", bg: "bg-destructive/15" },
 };
 
+function getNextPrayer(prayers: Array<{ name: string; status: string; scheduledTime?: string | null }>) {
+  const now = new Date();
+  for (const name of PRAYER_ORDER) {
+    const p = prayers.find((x) => x.name === name);
+    if (!p || p.status !== "pending" || !p.scheduledTime) continue;
+    try {
+      const [h, m] = p.scheduledTime.split(":").map(Number);
+      const pTime = new Date();
+      pTime.setHours(h!, m!, 0, 0);
+      if (isAfter(pTime, now)) return { name, scheduledTime: p.scheduledTime, pTime };
+    } catch { /* ignore */ }
+  }
+  return null;
+}
+
+function useCountdown(targetTime: Date | null) {
+  const [remaining, setRemaining] = useState<string | null>(null);
+  useEffect(() => {
+    if (!targetTime) { setRemaining(null); return; }
+    function update() {
+      if (!targetTime) { setRemaining(null); return; }
+      const diff = targetTime.getTime() - Date.now();
+      if (diff <= 0) { setRemaining(null); return; }
+      const h = Math.floor(diff / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      setRemaining(h > 0 ? `${h}h ${m}m` : m > 0 ? `${m}m ${s}s` : `${s}s`);
+    }
+    update();
+    const id = setInterval(update, 1000);
+    return () => clearInterval(id);
+  }, [targetTime]);
+  return remaining;
+}
+
 export default function Prayers() {
   const today = format(new Date(), "yyyy-MM-dd");
   const [selectedDate, setSelectedDate] = useState(today);
@@ -29,6 +65,10 @@ export default function Prayers() {
   const { data: prayers, isLoading } = useListPrayers({ date: selectedDate });
   const updatePrayer = useUpdatePrayer();
   const seedPrayers = useSeedPrayers();
+
+  const isToday = selectedDate === today;
+  const nextPrayer = isToday && prayers ? getNextPrayer(prayers) : null;
+  const countdown = useCountdown(nextPrayer?.pTime ?? null);
 
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: getListPrayersQueryKey({ date: selectedDate }) });
@@ -40,19 +80,18 @@ export default function Prayers() {
   }
 
   function handleStatus(id: string, status: "pending" | "on_time" | "late" | "missed") {
-    updatePrayer.mutate(
-      { id, data: { status } },
-      { onSuccess: invalidate }
-    );
+    updatePrayer.mutate({ id, data: { status } }, { onSuccess: invalidate });
   }
 
   const onTimeCount = prayers?.filter((p) => p.status === "on_time").length ?? 0;
   const lateCount = prayers?.filter((p) => p.status === "late").length ?? 0;
   const missedCount = prayers?.filter((p) => p.status === "missed").length ?? 0;
   const pendingCount = prayers?.filter((p) => p.status === "pending").length ?? 0;
+  const hasScheduledTimes = prayers?.some((p) => !!p.scheduledTime) ?? false;
 
   return (
-    <div className="p-6 max-w-2xl mx-auto space-y-6">
+    <div className="p-6 max-w-2xl mx-auto space-y-5">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-indigo-500/15 flex items-center justify-center">
@@ -72,6 +111,44 @@ export default function Prayers() {
         />
       </div>
 
+      {/* Next prayer countdown — only on today + has scheduled times */}
+      {isToday && nextPrayer && countdown && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-indigo-500/10 border border-indigo-500/25 rounded-2xl p-4 flex items-center gap-4"
+          data-testid="next-prayer-banner"
+        >
+          <div className="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center shrink-0">
+            <Bell size={18} className="text-indigo-400" />
+          </div>
+          <div className="flex-1">
+            <p className="text-xs text-indigo-400/80 font-medium uppercase tracking-wide">Next Prayer</p>
+            <p className="font-semibold text-foreground">{nextPrayer.name}</p>
+            {nextPrayer.scheduledTime && (
+              <p className="text-xs text-muted-foreground">{nextPrayer.scheduledTime}</p>
+            )}
+          </div>
+          <div className="text-right">
+            <p className="text-xl font-bold text-indigo-400 tabular-nums" style={{ fontFamily: "var(--app-font-display)" }}>
+              {countdown}
+            </p>
+            <p className="text-xs text-muted-foreground">remaining</p>
+          </div>
+        </motion.div>
+      )}
+
+      {/* No scheduled times nudge */}
+      {isToday && prayers && prayers.length > 0 && !hasScheduledTimes && (
+        <div className="flex items-center gap-3 bg-amber-500/8 border border-amber-500/20 rounded-xl p-3 text-sm">
+          <MapPin size={15} className="text-amber-400 shrink-0" />
+          <span className="text-muted-foreground flex-1">Add prayer times to get a live countdown</span>
+          <Link href="/islamic" className="text-xs text-amber-400 hover:underline">
+            Calculate →
+          </Link>
+        </div>
+      )}
+
       {/* Stats */}
       {prayers && prayers.length > 0 && (
         <div className="grid grid-cols-4 gap-2">
@@ -89,6 +166,7 @@ export default function Prayers() {
         </div>
       )}
 
+      {/* Prayer list */}
       {isLoading ? (
         <div className="space-y-3">
           {[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-20 w-full" />)}
@@ -109,13 +187,16 @@ export default function Prayers() {
             if (!prayer) return null;
             const config = statusConfig[prayer.status as keyof typeof statusConfig] ?? statusConfig.pending;
             const Icon = config.icon;
+            const isNext = nextPrayer?.name === name;
 
             return (
               <motion.div
                 key={prayer.id}
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-card border border-card-border rounded-xl p-4"
+                className={`bg-card border rounded-xl p-4 transition-colors ${
+                  isNext ? "border-indigo-500/40 ring-1 ring-indigo-500/20" : "border-card-border"
+                }`}
                 data-testid={`prayer-item-${prayer.name}`}
               >
                 <div className="flex items-center justify-between">
@@ -124,9 +205,16 @@ export default function Prayers() {
                       <Icon size={18} className={config.color} />
                     </div>
                     <div>
-                      <p className="font-semibold">{prayer.name}</p>
-                      {prayer.scheduledTime && (
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold">{prayer.name}</p>
+                        {isNext && (
+                          <span className="text-xs bg-indigo-500/15 text-indigo-400 px-1.5 py-0.5 rounded-full">Next</span>
+                        )}
+                      </div>
+                      {prayer.scheduledTime ? (
                         <p className="text-xs text-muted-foreground">{prayer.scheduledTime}</p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground/50">No time set</p>
                       )}
                     </div>
                   </div>
@@ -152,10 +240,6 @@ export default function Prayers() {
             );
           })}
         </div>
-      )}
-
-      {selectedDate === today && prayers && prayers.length === 0 && (
-        <div />
       )}
     </div>
   );

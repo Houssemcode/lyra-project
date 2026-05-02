@@ -1162,6 +1162,8 @@ components:
           $ref: "#/components/schemas/SummaryPrayers"
         focus:
           $ref: "#/components/schemas/SummaryFocus"
+        islamic:
+          $ref: "#/components/schemas/SummaryIslamic"
         events:
           type: array
           items:
@@ -1172,6 +1174,7 @@ components:
         - habits
         - prayers
         - focus
+        - islamic
         - events
 
     SummaryTasks:
@@ -1248,6 +1251,29 @@ components:
         - totalMinutes
         - totalSessions
         - completedSessions
+
+    SummaryIslamic:
+      type: object
+      properties:
+        deedsTotal:
+          type: integer
+        deedsCompleted:
+          type: integer
+        completedDeedNames:
+          type: array
+          items:
+            type: string
+        quranPage:
+          type: ["integer", "null"]
+        quranPercent:
+          type: ["integer", "null"]
+        quranPagesReadToday:
+          type: integer
+      required:
+        - deedsTotal
+        - deedsCompleted
+        - completedDeedNames
+        - quranPagesReadToday
 
     # ─── ISLAMIC SCHEMAS ─────────────────────────────────────────────────────────
 

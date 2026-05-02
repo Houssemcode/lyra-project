@@ -452,12 +452,24 @@ export interface SummaryFocus {
   completedSessions: number;
 }
 
+export interface SummaryIslamic {
+  deedsTotal: number;
+  deedsCompleted: number;
+  completedDeedNames: string[];
+  /** @nullable */
+  quranPage?: number | null;
+  /** @nullable */
+  quranPercent?: number | null;
+  quranPagesReadToday: number;
+}
+
 export interface DailySummary {
   date: string;
   tasks: SummaryTasks;
   habits: SummaryHabits;
   prayers: SummaryPrayers;
   focus: SummaryFocus;
+  islamic: SummaryIslamic;
   events: CalendarEvent[];
 }
 
