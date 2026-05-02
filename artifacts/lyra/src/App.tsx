@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useEffect, useState } from "react";
 import AppLayout from "@/components/layout/app-layout";
+import { NotificationScheduler } from "@/components/notification-scheduler";
 import Home from "@/pages/home";
 import Tasks from "@/pages/tasks";
 import Habits from "@/pages/habits";
@@ -51,6 +52,7 @@ function App() {
   return (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
+        <NotificationScheduler />
         <TooltipProvider>
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
             <Router />

@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { useGetSettings, useUpdateSettings, getGetSettingsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Settings as SettingsIcon, User, Moon, Clock, CheckCircle2, Info } from "lucide-react";
+import { Settings as SettingsIcon, User, Moon, Clock, CheckCircle2, Info, Bell, BellOff, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useNotificationPrefs } from "@/hooks/use-notification-prefs";
 
 const PRAYER_METHODS: { value: string; label: string; region: string }[] = [
   { value: "MuslimWorldLeague",      label: "Muslim World League",         region: "Europe, Far East, Americas" },
@@ -32,6 +34,8 @@ const TIME_FORMAT_OPTIONS = [
   { value: "24h", label: "24-hour (14:30)" },
   { value: "12h", label: "12-hour (2:30 PM)" },
 ];
+
+const PRAYER_REMINDER_MINS = [5, 10, 15, 20, 30];
 
 function SectionCard({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
   return (
@@ -59,6 +63,37 @@ function FieldRow({ label, hint, children }: { label: string; hint?: string; chi
   );
 }
 
+function ToggleRow({
+  label,
+  hint,
+  checked,
+  onCheckedChange,
+  disabled,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  checked: boolean;
+  onCheckedChange: (v: boolean) => void;
+  disabled?: boolean;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium">{label}</p>
+          {hint && <p className="text-xs text-muted-foreground mt-0.5">{hint}</p>}
+        </div>
+        <Switch checked={checked} onCheckedChange={onCheckedChange} disabled={disabled} />
+      </div>
+      {checked && children && (
+        <div className="pl-1 pt-1">{children}</div>
+      )}
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const queryClient = useQueryClient();
   const { data: settings, isLoading } = useGetSettings();
@@ -70,6 +105,8 @@ export default function SettingsPage() {
   const [timeFormat, setTimeFormat] = useState("24h");
   const [saved, setSaved] = useState(false);
   const [dirty, setDirty] = useState(false);
+
+  const { prefs, setPrefs, permission, enable, disable } = useNotificationPrefs();
 
   useEffect(() => {
     if (settings) {
@@ -103,7 +140,17 @@ export default function SettingsPage() {
     );
   }
 
+  async function handleNotifToggle(on: boolean) {
+    if (on) {
+      await enable();
+    } else {
+      disable();
+    }
+  }
+
   const selectedMethod = PRAYER_METHODS.find((m) => m.value === prayerMethod);
+  const notifSupported = typeof Notification !== "undefined";
+  const notifDenied = permission === "denied";
 
   return (
     <div className="p-6 max-w-2xl mx-auto space-y-6">
@@ -135,7 +182,7 @@ export default function SettingsPage() {
 
       {isLoading ? (
         <div className="space-y-4">
-          {Array.from({ length: 3 }).map((_, i) => (
+          {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-32 w-full rounded-2xl" />
           ))}
         </div>
@@ -202,6 +249,111 @@ export default function SettingsPage() {
             </div>
           </SectionCard>
 
+          {/* ── Notifications ── */}
+          <SectionCard icon={<Bell size={14} className="text-primary" />} title="Notifications">
+            {!notifSupported ? (
+              <div className="flex items-start gap-2 text-xs text-muted-foreground bg-muted/30 rounded-xl px-4 py-3">
+                <AlertTriangle size={13} className="mt-0.5 shrink-0 text-amber-400" />
+                Your browser does not support notifications.
+              </div>
+            ) : notifDenied ? (
+              <div className="flex items-start gap-2 text-xs bg-destructive/5 border border-destructive/20 rounded-xl px-4 py-3">
+                <BellOff size={13} className="mt-0.5 shrink-0 text-destructive" />
+                <span className="text-destructive/80">
+                  Notifications are blocked in your browser. To re-enable, click the lock icon in your address bar and allow notifications for this site, then refresh.
+                </span>
+              </div>
+            ) : (
+              <div className="space-y-5">
+                {/* Master enable */}
+                <ToggleRow
+                  label="Enable Notifications"
+                  hint={
+                    prefs.enabled
+                      ? "Active — reminders will fire while this tab is open"
+                      : "Off — no reminders will be sent"
+                  }
+                  checked={prefs.enabled}
+                  onCheckedChange={handleNotifToggle}
+                />
+
+                {prefs.enabled && (
+                  <div className="border-t border-card-border pt-4 space-y-5">
+                    {/* Prayer reminders */}
+                    <ToggleRow
+                      label="Prayer Reminders"
+                      hint="Get notified before each prayer time"
+                      checked={prefs.prayerReminderEnabled}
+                      onCheckedChange={(v) => setPrefs({ prayerReminderEnabled: v })}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-muted-foreground shrink-0">Remind me</span>
+                        <Select
+                          value={String(prefs.prayerReminderMins)}
+                          onValueChange={(v) => setPrefs({ prayerReminderMins: parseInt(v, 10) })}
+                        >
+                          <SelectTrigger className="h-8 text-xs w-36">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {PRAYER_REMINDER_MINS.map((n) => (
+                              <SelectItem key={n} value={String(n)}>
+                                {n} minutes before
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </ToggleRow>
+
+                    {/* Habit check-in */}
+                    <ToggleRow
+                      label="Daily Habit Reminder"
+                      hint="A nudge to log your habits before the day ends"
+                      checked={prefs.habitReminderEnabled}
+                      onCheckedChange={(v) => setPrefs({ habitReminderEnabled: v })}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-muted-foreground shrink-0">Remind at</span>
+                        <Input
+                          type="time"
+                          value={prefs.habitReminderTime}
+                          onChange={(e) => setPrefs({ habitReminderTime: e.target.value })}
+                          className="h-8 text-xs w-32"
+                        />
+                      </div>
+                    </ToggleRow>
+
+                    {/* Daily summary */}
+                    <ToggleRow
+                      label="Daily Summary Reminder"
+                      hint="End-of-day nudge to review your summary"
+                      checked={prefs.summaryReminderEnabled}
+                      onCheckedChange={(v) => setPrefs({ summaryReminderEnabled: v })}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-muted-foreground shrink-0">Remind at</span>
+                        <Input
+                          type="time"
+                          value={prefs.summaryReminderTime}
+                          onChange={(e) => setPrefs({ summaryReminderTime: e.target.value })}
+                          className="h-8 text-xs w-32"
+                        />
+                      </div>
+                    </ToggleRow>
+                  </div>
+                )}
+
+                <div className="flex items-start gap-2 bg-muted/20 rounded-xl px-4 py-3">
+                  <Bell size={12} className="mt-0.5 shrink-0 text-muted-foreground" />
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Reminders fire while Lyra is open in any browser tab. Notification preferences are stored locally on this device.
+                  </p>
+                </div>
+              </div>
+            )}
+          </SectionCard>
+
           {/* ── Display ── */}
           <SectionCard icon={<Clock size={14} className="text-primary" />} title="Display">
             <FieldRow label="Time Format">
@@ -226,11 +378,11 @@ export default function SettingsPage() {
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Version</span>
-                <span className="font-mono text-xs bg-muted px-2 py-0.5 rounded">v1.2.0</span>
+                <span className="font-mono text-xs bg-muted px-2 py-0.5 rounded">v1.3.0</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Modules</span>
-                <span className="text-xs text-right">Tasks · Habits · Calendar · Prayers · Focus · Islamic Life</span>
+                <span className="text-xs text-right">Tasks · Habits · Calendar · Prayers · Focus · Islamic Life · Progress · Reports</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Prayer engine</span>
