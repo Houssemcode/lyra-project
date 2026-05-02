@@ -30,6 +30,7 @@ import type {
   FocusStats,
   GamificationSummary,
   GetDailySummaryParams,
+  GetReportParams,
   Habit,
   HabitLog,
   HabitWithStatus,
@@ -46,6 +47,7 @@ import type {
   LogHabitBody,
   Prayer,
   QuranProgress,
+  Report,
   SeedPrayersBody,
   Task,
   TodayTasksSummary,
@@ -2955,6 +2957,100 @@ export function useGetDailySummary<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetDailySummaryQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get weekly or monthly productivity report
+ */
+export const getGetReportUrl = (params?: GetReportParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/reports?${stringifiedParams}`
+    : `/api/reports`;
+};
+
+export const getReport = async (
+  params?: GetReportParams,
+  options?: RequestInit,
+): Promise<Report> => {
+  return customFetch<Report>(getGetReportUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetReportQueryKey = (params?: GetReportParams) => {
+  return [`/api/reports`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetReportQueryOptions = <
+  TData = Awaited<ReturnType<typeof getReport>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetReportParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getReport>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetReportQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getReport>>> = ({
+    signal,
+  }) => getReport(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getReport>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetReportQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getReport>>
+>;
+export type GetReportQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get weekly or monthly productivity report
+ */
+
+export function useGetReport<
+  TData = Awaited<ReturnType<typeof getReport>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetReportParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getReport>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetReportQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

@@ -703,6 +703,51 @@ export interface UpdateSettingsBody {
   timeFormat?: string | null;
 }
 
+export interface ReportDayStats {
+  date: string;
+  tasksCompleted: number;
+  habitsCompleted: number;
+  habitsTotal: number;
+  prayersOnTime: number;
+  prayersLate: number;
+  prayersMissed: number;
+  focusMinutes: number;
+  focusSessions: number;
+  deedsCompleted: number;
+  xp: number;
+}
+
+export interface ReportHabitRow {
+  habitId: string;
+  name: string;
+  completedDays: number;
+  totalDays: number;
+}
+
+export type ReportPeriod = (typeof ReportPeriod)[keyof typeof ReportPeriod];
+
+export const ReportPeriod = {
+  weekly: "weekly",
+  monthly: "monthly",
+} as const;
+
+export interface Report {
+  period: ReportPeriod;
+  startDate: string;
+  endDate: string;
+  days: ReportDayStats[];
+  totalXp: number;
+  totalTasksCompleted: number;
+  totalHabitsCompleted: number;
+  avgHabitRate: number;
+  totalPrayersOnTime: number;
+  totalPrayersLate: number;
+  totalPrayersMissed: number;
+  totalFocusMinutes: number;
+  totalDeedsCompleted: number;
+  habitBreakdown: ReportHabitRow[];
+}
+
 export interface HabitStreakItem {
   habitId: string;
   name: string;
@@ -804,3 +849,23 @@ export type GetDailySummaryParams = {
    */
   date?: string | null;
 };
+
+export type GetReportParams = {
+  /**
+   * Report period (default: weekly)
+   */
+  period?: GetReportPeriod;
+  /**
+   * Anchor date YYYY-MM-DD (defaults to today)
+   * @nullable
+   */
+  date?: string | null;
+};
+
+export type GetReportPeriod =
+  (typeof GetReportPeriod)[keyof typeof GetReportPeriod];
+
+export const GetReportPeriod = {
+  weekly: "weekly",
+  monthly: "monthly",
+} as const;

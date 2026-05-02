@@ -692,6 +692,31 @@ paths:
               schema:
                 $ref: "#/components/schemas/DailySummary"
 
+  /reports:
+    get:
+      operationId: getReport
+      tags: [reports]
+      summary: Get weekly or monthly productivity report
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [weekly, monthly]
+          description: "Report period (default: weekly)"
+        - name: date
+          in: query
+          schema:
+            type: ["string", "null"]
+          description: "Anchor date YYYY-MM-DD (defaults to today)"
+      responses:
+        "200":
+          description: Aggregated report for the period
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Report"
+
   # ─── SETTINGS ────────────────────────────────────────────────────────────────
   /gamification:
     get:
@@ -1583,6 +1608,114 @@ components:
           type: ["string", "null"]
         timeFormat:
           type: ["string", "null"]
+
+    # ─── REPORTS SCHEMAS ─────────────────────────────────────────────────────
+    ReportDayStats:
+      type: object
+      properties:
+        date:
+          type: string
+        tasksCompleted:
+          type: integer
+        habitsCompleted:
+          type: integer
+        habitsTotal:
+          type: integer
+        prayersOnTime:
+          type: integer
+        prayersLate:
+          type: integer
+        prayersMissed:
+          type: integer
+        focusMinutes:
+          type: integer
+        focusSessions:
+          type: integer
+        deedsCompleted:
+          type: integer
+        xp:
+          type: integer
+      required:
+        - date
+        - tasksCompleted
+        - habitsCompleted
+        - habitsTotal
+        - prayersOnTime
+        - prayersLate
+        - prayersMissed
+        - focusMinutes
+        - focusSessions
+        - deedsCompleted
+        - xp
+
+    ReportHabitRow:
+      type: object
+      properties:
+        habitId:
+          type: string
+        name:
+          type: string
+        completedDays:
+          type: integer
+        totalDays:
+          type: integer
+      required:
+        - habitId
+        - name
+        - completedDays
+        - totalDays
+
+    Report:
+      type: object
+      properties:
+        period:
+          type: string
+          enum: [weekly, monthly]
+        startDate:
+          type: string
+        endDate:
+          type: string
+        days:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReportDayStats"
+        totalXp:
+          type: integer
+        totalTasksCompleted:
+          type: integer
+        totalHabitsCompleted:
+          type: integer
+        avgHabitRate:
+          type: number
+        totalPrayersOnTime:
+          type: integer
+        totalPrayersLate:
+          type: integer
+        totalPrayersMissed:
+          type: integer
+        totalFocusMinutes:
+          type: integer
+        totalDeedsCompleted:
+          type: integer
+        habitBreakdown:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReportHabitRow"
+      required:
+        - period
+        - startDate
+        - endDate
+        - days
+        - totalXp
+        - totalTasksCompleted
+        - totalHabitsCompleted
+        - avgHabitRate
+        - totalPrayersOnTime
+        - totalPrayersLate
+        - totalPrayersMissed
+        - totalFocusMinutes
+        - totalDeedsCompleted
+        - habitBreakdown
 
     # ─── GAMIFICATION SCHEMAS ─────────────────────────────────────────────────
     HabitStreakItem:

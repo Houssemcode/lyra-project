@@ -726,6 +726,58 @@ export const GetDailySummaryResponse = zod.object({
 });
 
 /**
+ * @summary Get weekly or monthly productivity report
+ */
+export const GetReportQueryParams = zod.object({
+  period: zod
+    .enum(["weekly", "monthly"])
+    .optional()
+    .describe("Report period (default: weekly)"),
+  date: zod.coerce
+    .string()
+    .nullish()
+    .describe("Anchor date YYYY-MM-DD (defaults to today)"),
+});
+
+export const GetReportResponse = zod.object({
+  period: zod.enum(["weekly", "monthly"]),
+  startDate: zod.string(),
+  endDate: zod.string(),
+  days: zod.array(
+    zod.object({
+      date: zod.string(),
+      tasksCompleted: zod.number(),
+      habitsCompleted: zod.number(),
+      habitsTotal: zod.number(),
+      prayersOnTime: zod.number(),
+      prayersLate: zod.number(),
+      prayersMissed: zod.number(),
+      focusMinutes: zod.number(),
+      focusSessions: zod.number(),
+      deedsCompleted: zod.number(),
+      xp: zod.number(),
+    }),
+  ),
+  totalXp: zod.number(),
+  totalTasksCompleted: zod.number(),
+  totalHabitsCompleted: zod.number(),
+  avgHabitRate: zod.number(),
+  totalPrayersOnTime: zod.number(),
+  totalPrayersLate: zod.number(),
+  totalPrayersMissed: zod.number(),
+  totalFocusMinutes: zod.number(),
+  totalDeedsCompleted: zod.number(),
+  habitBreakdown: zod.array(
+    zod.object({
+      habitId: zod.string(),
+      name: zod.string(),
+      completedDays: zod.number(),
+      totalDays: zod.number(),
+    }),
+  ),
+});
+
+/**
  * @summary Get XP, level, today's score breakdown, and habit streaks
  */
 export const GetGamificationSummaryResponse = zod.object({
