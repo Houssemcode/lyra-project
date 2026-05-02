@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useEffect, useState } from "react";
 import AppLayout from "@/components/layout/app-layout";
 import { NotificationScheduler } from "@/components/notification-scheduler";
+import { OnboardingWizard } from "@/components/onboarding-wizard";
 import Home from "@/pages/home";
 import Tasks from "@/pages/tasks";
 import Habits from "@/pages/habits";
@@ -48,7 +49,18 @@ function Router() {
   );
 }
 
+const ONBOARDING_KEY = "lyra_onboarding_done";
+
 function App() {
+  const [onboardingDone, setOnboardingDone] = useState(
+    () => !!localStorage.getItem(ONBOARDING_KEY)
+  );
+
+  function completeOnboarding() {
+    localStorage.setItem(ONBOARDING_KEY, "1");
+    setOnboardingDone(true);
+  }
+
   return (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
@@ -58,6 +70,7 @@ function App() {
             <Router />
           </WouterRouter>
           <Toaster />
+          {!onboardingDone && <OnboardingWizard onComplete={completeOnboarding} />}
         </TooltipProvider>
       </QueryClientProvider>
     </ThemeProvider>
