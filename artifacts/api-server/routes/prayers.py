@@ -8,12 +8,17 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlmodel import Session, select
 from database import get_session
-from models import Prayer, UserSettings
-from utils import camelify, today_str
+from models import PrayerLog, UserSettings
+from utils import today_str
 
 router = APIRouter()
 
 PRAYER_ORDER = ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"]
+
+# stored:   On_Time / Late / Missed / None(pending)
+# frontend: on_time / late / missed / pending
+_STATUS_TO   = {"pending": None, "on_time": "On_Time", "late": "Late", "missed": "Missed"}
+_STATUS_FROM = {None: "pending", "On_Time": "on_time", "Late": "late", "Missed": "missed"}
 
 METHOD_PARAMS = {
     "MuslimWorldLeague":      (18.0, 17.0, False),
@@ -85,30 +90,23 @@ def calculate_prayer_times(lat: float, lng: float, target_date: str, method: str
     d = date_cls.fromisoformat(target_date)
     jd = _julian_day(d.year, d.month, d.day)
     dec, eq_t = _sun_position(jd)
-
     utc_offset = lng / 15.0
     transit = 12.0 - (lng / 15.0) - eq_t
-
     fajr_angle, isha_angle, isha_is_fixed = METHOD_PARAMS.get(method, (18.0, 18.0, False))
     shadow_factor = 2 if madhab == "Hanafi" else 1
 
     sunrise_ha = _hour_angle(lat, dec, 0.833)
     if sunrise_ha is None:
         return None
-
     sunrise = transit - sunrise_ha
     sunset = transit + sunrise_ha
 
     fajr_ha = _hour_angle(lat, dec, fajr_angle)
     fajr = transit - (fajr_ha if fajr_ha else sunrise_ha)
-
     dhuhr = transit + (1.0 / 60.0)
-
     asr_ha = _asr_angle(lat, dec, shadow_factor)
     asr = transit + (asr_ha if asr_ha else 3.0)
-
     maghrib = sunset + (2.0 / 60.0)
-
     if isha_is_fixed:
         isha = maghrib + 1.5
     else:
@@ -127,8 +125,15 @@ def calculate_prayer_times(lat: float, lng: float, target_date: str, method: str
     }
 
 
-def serialize_prayer(p: Prayer) -> dict:
-    return camelify(p.model_dump())
+def serialize_prayer(p: PrayerLog) -> dict:
+    return {
+        "id": p.id,
+        "name": p.prayer_name,
+        "date": p.date,
+        "scheduledTime": p.calculated_time,
+        "status": _STATUS_FROM.get(p.status, "pending"),
+        "completedAt": p.logged_at.isoformat() if p.logged_at else None,
+    }
 
 
 class CalculateBody(BaseModel):
@@ -152,7 +157,6 @@ class UpdatePrayerBody(BaseModel):
 @router.post("/prayers/calculate")
 def calculate_prayers(body: CalculateBody, session: Session = Depends(get_session)):
     target_date = body.date or today_str()
-
     settings = session.exec(select(UserSettings)).first()
     method = body.method or (settings.prayer_method if settings else "MoonsightingCommittee")
     madhab = settings.prayer_madhab if settings else "Shafi"
@@ -161,74 +165,69 @@ def calculate_prayers(body: CalculateBody, session: Session = Depends(get_sessio
     if not times:
         raise HTTPException(status_code=500, detail="Prayer time calculation failed")
 
-    existing = session.exec(select(Prayer).where(Prayer.date == target_date)).all()
-
+    existing = session.exec(select(PrayerLog).where(PrayerLog.date == target_date)).all()
     if existing:
         for p in existing:
-            p.scheduled_time = times.get(p.name)
+            p.calculated_time = times.get(p.prayer_name)
             session.add(p)
         session.commit()
-        prayers = session.exec(select(Prayer).where(Prayer.date == target_date)).all()
-        prayers = sorted(prayers, key=lambda p: PRAYER_ORDER.index(p.name))
+        prayers = session.exec(select(PrayerLog).where(PrayerLog.date == target_date)).all()
+        prayers = sorted(prayers, key=lambda p: PRAYER_ORDER.index(p.prayer_name))
         return JSONResponse(content=[serialize_prayer(p) for p in prayers])
 
     entries = []
     for name in PRAYER_ORDER:
-        p = Prayer(name=name, date=target_date, scheduled_time=times.get(name), status="pending")
+        p = PrayerLog(prayer_name=name, date=target_date, calculated_time=times.get(name))
         session.add(p)
         entries.append(p)
     session.commit()
     for p in entries:
         session.refresh(p)
-
     return JSONResponse(content=[serialize_prayer(p) for p in entries])
 
 
 @router.post("/prayers/seed")
 def seed_prayers(body: SeedBody, session: Session = Depends(get_session)):
-    existing = session.exec(select(Prayer).where(Prayer.date == body.date)).all()
+    existing = session.exec(select(PrayerLog).where(PrayerLog.date == body.date)).all()
     if existing:
-        existing_sorted = sorted(existing, key=lambda p: PRAYER_ORDER.index(p.name))
-        return JSONResponse(content=[serialize_prayer(p) for p in existing_sorted])
+        return JSONResponse(content=[serialize_prayer(p) for p in sorted(existing, key=lambda p: PRAYER_ORDER.index(p.prayer_name))])
 
     entries = []
     for name in PRAYER_ORDER:
-        p = Prayer(
-            name=name,
+        p = PrayerLog(
+            prayer_name=name,
             date=body.date,
-            scheduled_time=(body.times or {}).get(name),
-            status="pending",
+            calculated_time=(body.times or {}).get(name),
         )
         session.add(p)
         entries.append(p)
     session.commit()
     for p in entries:
         session.refresh(p)
-
     return JSONResponse(content=[serialize_prayer(p) for p in entries])
 
 
 @router.get("/prayers")
 def list_prayers(date: Optional[str] = None, session: Session = Depends(get_session)):
     target_date = date or today_str()
-    prayers = session.exec(select(Prayer).where(Prayer.date == target_date)).all()
-    prayers = sorted(prayers, key=lambda p: PRAYER_ORDER.index(p.name) if p.name in PRAYER_ORDER else 99)
+    prayers = session.exec(select(PrayerLog).where(PrayerLog.date == target_date)).all()
+    prayers = sorted(prayers, key=lambda p: PRAYER_ORDER.index(p.prayer_name) if p.prayer_name in PRAYER_ORDER else 99)
     return JSONResponse(content=[serialize_prayer(p) for p in prayers])
 
 
 @router.patch("/prayers/{prayer_id}")
 def update_prayer(prayer_id: str, body: UpdatePrayerBody, session: Session = Depends(get_session)):
-    prayer = session.get(Prayer, prayer_id)
+    prayer = session.get(PrayerLog, prayer_id)
     if not prayer:
         raise HTTPException(status_code=404, detail="Prayer not found")
 
-    prayer.status = body.status
+    prayer.status = _STATUS_TO.get(body.status)
     if body.scheduledTime is not None:
-        prayer.scheduled_time = body.scheduledTime
+        prayer.calculated_time = body.scheduledTime
     if body.completedAt is not None:
-        prayer.completed_at = datetime.fromisoformat(body.completedAt.replace("Z", "+00:00"))
+        prayer.logged_at = datetime.fromisoformat(body.completedAt.replace("Z", "+00:00"))
     elif body.status not in ("pending", "missed"):
-        prayer.completed_at = datetime.utcnow()
+        prayer.logged_at = datetime.utcnow()
 
     session.add(prayer)
     session.commit()

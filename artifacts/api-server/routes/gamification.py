@@ -5,8 +5,8 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 from sqlmodel import Session, select, and_, func
 from database import get_session
-from models import Task, Habit, HabitLog, Prayer, FocusSession, ActivityLog
-from utils import camelify, today_str
+from models import Task, Habit, HabitLog, PrayerLog, FocusSession, ActivityLog
+from utils import today_str
 
 router = APIRouter()
 
@@ -31,14 +31,14 @@ def get_gamification(session: Session = Depends(get_session)):
     today_start = datetime.fromisoformat(today + "T00:00:00")
     week_start = datetime.fromisoformat(week_ago + "T00:00:00")
 
-    task_all = session.exec(select(func.count(Task.id)).where(Task.status == "done")).one()
-    habit_all = session.exec(select(func.count(HabitLog.id)).where(HabitLog.status == "completed")).one()
-    prayer_ontime_all = session.exec(select(func.count(Prayer.id)).where(Prayer.status == "on_time")).one()
-    prayer_late_all = session.exec(select(func.count(Prayer.id)).where(Prayer.status == "late")).one()
-    deed_all = session.exec(select(func.count(ActivityLog.id)).where(ActivityLog.status == "completed")).one()
+    task_all = session.exec(select(func.count(Task.id)).where(Task.status == "Done")).one()
+    habit_all = session.exec(select(func.count(HabitLog.id)).where(HabitLog.status == "Completed")).one()
+    prayer_ontime_all = session.exec(select(func.count(PrayerLog.id)).where(PrayerLog.status == "On_Time")).one()
+    prayer_late_all = session.exec(select(func.count(PrayerLog.id)).where(PrayerLog.status == "Late")).one()
+    deed_all = session.exec(select(func.count(ActivityLog.id)).where(ActivityLog.status == "Completed")).one()
 
     focus_sessions_all = session.exec(select(FocusSession)).all()
-    focus_mins_all = sum(min(s.duration_minutes, 90) for s in focus_sessions_all)
+    focus_mins_all = sum(min(s.actual_duration or 0, 90) for s in focus_sessions_all)
 
     total_xp = (
         task_all * XP_TASK +
@@ -50,25 +50,29 @@ def get_gamification(session: Session = Depends(get_session)):
     )
 
     task_today = session.exec(
-        select(func.count(Task.id)).where(and_(Task.status == "done", Task.completed_at >= today_start))
+        select(func.count(Task.id)).where(and_(Task.status == "Done", Task.completed_at >= today_start))
     ).one()
     habit_today = session.exec(
-        select(func.count(HabitLog.id)).where(and_(HabitLog.status == "completed", HabitLog.date == today))
+        select(func.count(HabitLog.id)).where(and_(HabitLog.status == "Completed", HabitLog.date == today))
     ).one()
     prayer_ontime_today = session.exec(
-        select(func.count(Prayer.id)).where(and_(Prayer.status == "on_time", Prayer.date == today))
+        select(func.count(PrayerLog.id)).where(and_(PrayerLog.status == "On_Time", PrayerLog.date == today))
     ).one()
     prayer_late_today = session.exec(
-        select(func.count(Prayer.id)).where(and_(Prayer.status == "late", Prayer.date == today))
+        select(func.count(PrayerLog.id)).where(and_(PrayerLog.status == "Late", PrayerLog.date == today))
     ).one()
+    deed_today_start = datetime.fromisoformat(today + "T00:00:00")
+    deed_today_end = datetime.fromisoformat(today + "T23:59:59")
     deed_today = session.exec(
-        select(func.count(ActivityLog.id)).where(and_(ActivityLog.status == "completed", ActivityLog.date == today))
+        select(func.count(ActivityLog.id)).where(
+            and_(ActivityLog.status == "Completed", ActivityLog.logged_at >= deed_today_start, ActivityLog.logged_at <= deed_today_end)
+        )
     ).one()
 
     focus_today_sessions = session.exec(
         select(FocusSession).where(FocusSession.started_at >= today_start)
     ).all()
-    focus_mins_today = sum(min(s.duration_minutes, 90) for s in focus_today_sessions)
+    focus_mins_today = sum(min(s.actual_duration or 0, 90) for s in focus_today_sessions)
 
     t_tasks = task_today * XP_TASK
     t_habits = habit_today * XP_HABIT
@@ -77,25 +81,28 @@ def get_gamification(session: Session = Depends(get_session)):
     t_islamic = deed_today * XP_DEED
 
     task_week = session.exec(
-        select(func.count(Task.id)).where(and_(Task.status == "done", Task.completed_at >= week_start))
+        select(func.count(Task.id)).where(and_(Task.status == "Done", Task.completed_at >= week_start))
     ).one()
     habit_week = session.exec(
-        select(func.count(HabitLog.id)).where(and_(HabitLog.status == "completed", HabitLog.date >= week_ago))
+        select(func.count(HabitLog.id)).where(and_(HabitLog.status == "Completed", HabitLog.date >= week_ago))
     ).one()
     prayer_ontime_week = session.exec(
-        select(func.count(Prayer.id)).where(and_(Prayer.status == "on_time", Prayer.date >= week_ago))
+        select(func.count(PrayerLog.id)).where(and_(PrayerLog.status == "On_Time", PrayerLog.date >= week_ago))
     ).one()
     prayer_late_week = session.exec(
-        select(func.count(Prayer.id)).where(and_(Prayer.status == "late", Prayer.date >= week_ago))
+        select(func.count(PrayerLog.id)).where(and_(PrayerLog.status == "Late", PrayerLog.date >= week_ago))
     ).one()
+    deed_week_start = datetime.fromisoformat(week_ago + "T00:00:00")
     deed_week = session.exec(
-        select(func.count(ActivityLog.id)).where(and_(ActivityLog.status == "completed", ActivityLog.date >= week_ago))
+        select(func.count(ActivityLog.id)).where(
+            and_(ActivityLog.status == "Completed", ActivityLog.logged_at >= deed_week_start)
+        )
     ).one()
 
     focus_week_sessions = session.exec(
         select(FocusSession).where(FocusSession.started_at >= week_start)
     ).all()
-    focus_mins_week = sum(min(s.duration_minutes, 90) for s in focus_week_sessions)
+    focus_mins_week = sum(min(s.actual_duration or 0, 90) for s in focus_week_sessions)
 
     weekly_xp = (
         task_week * XP_TASK +
@@ -106,10 +113,7 @@ def get_gamification(session: Session = Depends(get_session)):
         deed_week * XP_DEED
     )
 
-    habits = session.exec(
-        select(Habit).where(Habit.is_archived == False)
-    ).all()
-
+    habits = session.exec(select(Habit).where(Habit.is_archived == False)).all()
     level = level_from_xp(total_xp)
 
     return JSONResponse(content={
@@ -127,7 +131,7 @@ def get_gamification(session: Session = Depends(get_session)):
         },
         "weeklyXp": weekly_xp,
         "habitStreaks": [
-            {"habitId": h.id, "name": h.name, "streak": h.streak, "bestStreak": h.best_streak}
+            {"habitId": h.id, "name": h.name, "streak": h.current_streak, "bestStreak": h.longest_streak}
             for h in habits
         ],
     })

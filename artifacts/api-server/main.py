@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 from sqlmodel import Session
 
 from database import create_db_and_tables, engine
-from seed import seed_islamic_activities
+from seed import seed_islamic_activities, seed_routines
 from routes import tasks, habits, events, prayers, focus, islamic, settings, gamification, reports, daily_summary, export
 
 BASE_PATH = os.getenv("BASE_PATH", "/api")
@@ -27,6 +27,7 @@ app.add_middleware(
 def on_startup():
     create_db_and_tables()
     with Session(engine) as session:
+        seed_routines(session)
         seed_islamic_activities(session)
 
 

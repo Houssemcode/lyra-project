@@ -10,119 +10,221 @@ def gen_uuid() -> str:
     return str(uuid4())
 
 
-class Task(SQLModel, table=True):
-    __tablename__ = "tasks"
+class Folder(SQLModel, table=True):
+    __tablename__ = "Folder"
     id: str = Field(primary_key=True, default_factory=gen_uuid)
+    name: str
+    created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
+    is_archived: bool = False
+    archived_at: Optional[datetime] = None
+
+
+class TaskList(SQLModel, table=True):
+    __tablename__ = "List"
+    id: str = Field(primary_key=True, default_factory=gen_uuid)
+    folder_id: Optional[str] = Field(default=None, foreign_key="Folder.id")
+    name: str
+    created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
+    is_archived: bool = False
+    archived_at: Optional[datetime] = None
+
+
+class Tag(SQLModel, table=True):
+    __tablename__ = "Tag"
+    id: str = Field(primary_key=True, default_factory=gen_uuid)
+    name: str
+    color: Optional[str] = None
+    is_archived: bool = False
+    archived_at: Optional[datetime] = None
+
+
+class Task(SQLModel, table=True):
+    __tablename__ = "Task"
+    id: str = Field(primary_key=True, default_factory=gen_uuid)
+    list_id: Optional[str] = Field(default=None, foreign_key="List.id")
+    parent_task_id: Optional[str] = Field(default=None, foreign_key="Task.id")
     title: str
     description: Optional[str] = None
-    status: str = "pending"
-    priority: str = "none"
-    due_date: Optional[str] = None
-    due_time: Optional[str] = None
-    list: Optional[str] = None
-    tags: str = Field(default="[]")
+    priority: str = "None"      # None / Low / Medium / High
+    status: str = "Pending"     # Pending / Done
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    recurrence_rule: Optional[str] = None   # daily / weekly / monthly
     completed_at: Optional[datetime] = None
-    recurrence: str = "none"
-    template_id: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+    is_archived: bool = False
+    archived_at: Optional[datetime] = None
+
+
+class TaskTag(SQLModel, table=True):
+    __tablename__ = "TaskTag"
+    task_id: str = Field(primary_key=True, foreign_key="Task.id")
+    tag_id: str = Field(primary_key=True, foreign_key="Tag.id")
+
+
+class Routine(SQLModel, table=True):
+    __tablename__ = "Routine"
+    id: str = Field(primary_key=True, default_factory=gen_uuid)
+    name: str           # Morning / Afternoon / Evening / Anytime
+    is_default: bool = False
+    is_archived: bool = False
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    archived_at: Optional[datetime] = None
 
 
 class Habit(SQLModel, table=True):
-    __tablename__ = "habits"
+    __tablename__ = "Habit"
     id: str = Field(primary_key=True, default_factory=gen_uuid)
+    folder_id: Optional[str] = Field(default=None, foreign_key="Folder.id")
+    routine_id: Optional[str] = Field(default=None, foreign_key="Routine.id")
     name: str
-    category: Optional[str] = None
-    time_of_day: str = "anytime"
-    type: str = "positive"
-    streak: int = 0
-    best_streak: int = 0
+    type: str = "Binary"        # Binary / Numeric / Timer
+    recurrence_rule: Optional[str] = None
+    target_value: Optional[int] = None
+    current_streak: int = 0
+    longest_streak: int = 0
     is_archived: bool = False
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    archived_at: Optional[datetime] = None
 
 
 class HabitLog(SQLModel, table=True):
-    __tablename__ = "habit_logs"
+    __tablename__ = "HabitLog"
     id: str = Field(primary_key=True, default_factory=gen_uuid)
-    habit_id: str = Field(foreign_key="habits.id")
-    date: str
-    status: str
+    habit_id: str = Field(foreign_key="Habit.id")
+    date: str               # YYYY-MM-DD
+    status: str             # Completed / Failed / Skipped
+    value: Optional[int] = None
     logged_at: datetime = Field(default_factory=datetime.utcnow)
 
 
-class Event(SQLModel, table=True):
-    __tablename__ = "events"
+class FocusSession(SQLModel, table=True):
+    __tablename__ = "FocusSession"
+    id: str = Field(primary_key=True, default_factory=gen_uuid)
+    task_id: Optional[str] = Field(default=None, foreign_key="Task.id")
+    habit_id: Optional[str] = Field(default=None, foreign_key="Habit.id")
+    timer_mode: str = "Pomodoro"    # Pomodoro / Stopwatch
+    session_type: str = "Work"      # Work / ShortBreak / LongBreak
+    planned_duration: Optional[int] = None   # minutes
+    actual_duration: Optional[int] = None    # minutes
+    status: str = "Completed"       # Completed / Interrupted
+    started_at: datetime = Field(default_factory=datetime.utcnow)
+    ended_at: Optional[datetime] = None
+    is_archived: bool = False
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    archived_at: Optional[datetime] = None
+
+
+class CalendarEvent(SQLModel, table=True):
+    __tablename__ = "CalendarEvent"
     id: str = Field(primary_key=True, default_factory=gen_uuid)
     title: str
     description: Optional[str] = None
     location: Optional[str] = None
+    url: Optional[str] = None
     start_time: datetime
     end_time: Optional[datetime] = None
-    all_day: bool = False
-    category: Optional[str] = None
-    source: str = "native"
+    is_all_day: bool = False
+    recurrence_rule: Optional[str] = None
+    event_type: str = "Native"      # Native / Task_Import / Prayer_Import
+    source_id: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    is_archived: bool = False
+    archived_at: Optional[datetime] = None
 
 
-class Prayer(SQLModel, table=True):
-    __tablename__ = "prayers"
+class PrayerLog(SQLModel, table=True):
+    __tablename__ = "PrayerLog"
     id: str = Field(primary_key=True, default_factory=gen_uuid)
-    name: str
-    date: str
-    scheduled_time: Optional[str] = None
-    status: str = "pending"
-    completed_at: Optional[datetime] = None
-
-
-class FocusSession(SQLModel, table=True):
-    __tablename__ = "focus_sessions"
-    id: str = Field(primary_key=True, default_factory=gen_uuid)
-    task_id: Optional[str] = None
-    task_title: Optional[str] = None
-    duration_minutes: int
-    status: str
-    started_at: datetime
-    ended_at: Optional[datetime] = None
-    notes: Optional[str] = None
-
-
-class QuranProgress(SQLModel, table=True):
-    __tablename__ = "quran_progress"
-    id: str = Field(primary_key=True, default_factory=gen_uuid)
-    current_surah: int = 1
-    current_page: int = 1
-    total_pages: int = 604
-    target_date: Optional[str] = None
-    daily_target: int = 2
-    notes: Optional[str] = None
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    prayer_name: str            # Fajr / Dhuhr / Asr / Maghrib / Isha
+    date: str                   # YYYY-MM-DD
+    calculated_time: Optional[str] = None   # HH:MM local
+    status: Optional[str] = None            # On_Time / Late / Missed (None = pending)
+    logged_at: Optional[datetime] = None
+    is_archived: bool = False
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    archived_at: Optional[datetime] = None
 
 
 class IslamicActivity(SQLModel, table=True):
-    __tablename__ = "islamic_activities"
+    __tablename__ = "IslamicActivity"
     id: str = Field(primary_key=True, default_factory=gen_uuid)
     name: str
-    arabic_name: Optional[str] = None
-    reward_text: str
-    category: str = "sunnah"
+    reward_text: Optional[str] = None
     hijri_month: Optional[int] = None
     hijri_day: Optional[int] = None
-    day_of_week: Optional[int] = None
-    is_active: bool = True
-    sort_order: int = 0
+    type: str = "sunnah"        # fard / sunnah / mostahab
+    is_archived: bool = False
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    archived_at: Optional[datetime] = None
 
 
 class ActivityLog(SQLModel, table=True):
-    __tablename__ = "activity_logs"
+    __tablename__ = "ActivityLog"
     id: str = Field(primary_key=True, default_factory=gen_uuid)
-    activity_id: str = Field(foreign_key="islamic_activities.id")
-    status: str = "completed"
-    date: str
+    activity_id: str = Field(foreign_key="IslamicActivity.id")
+    status: str = "Completed"   # Intended / Completed
     hijri_date: Optional[str] = None
-    notes: Optional[str] = None
     logged_at: datetime = Field(default_factory=datetime.utcnow)
+    is_archived: bool = False
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    archived_at: Optional[datetime] = None
+
+
+class Khatmah(SQLModel, table=True):
+    __tablename__ = "Khatmah"
+    id: str = Field(primary_key=True, default_factory=gen_uuid)
+    name: str = "My Khatmah"
+    type: str = "Tilawah"       # Tilawah / Hifz / Murajaah / Tafsir
+    start_date: Optional[str] = None
+    target_date: Optional[str] = None
+    total_pages: int = 604
+    current_page: int = 0
+    status: str = "Active"      # Active / Paused / Completed / Abandoned
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    is_archived: bool = False
+    archived_at: Optional[datetime] = None
+
+
+class KhatmahSession(SQLModel, table=True):
+    __tablename__ = "KhatmahSession"
+    id: str = Field(primary_key=True, default_factory=gen_uuid)
+    khatmah_id: str = Field(foreign_key="Khatmah.id")
+    focus_session_id: Optional[str] = Field(default=None, foreign_key="FocusSession.id")
+    start_page: Optional[int] = None
+    end_page: Optional[int] = None
+    pages_read: Optional[int] = None
+    duration: Optional[int] = None
+    logged_at: datetime = Field(default_factory=datetime.utcnow)
+    is_archived: bool = False
+    archived_at: Optional[datetime] = None
+
+
+class SystemState(SQLModel, table=True):
+    __tablename__ = "SystemState"
+    id: str = Field(primary_key=True, default_factory=gen_uuid)
+    current_hijri_date: Optional[str] = None
+    last_n8n_sync: Optional[datetime] = None
+
+
+class Protocol(SQLModel, table=True):
+    __tablename__ = "Protocol"
+    id: str = Field(primary_key=True, default_factory=gen_uuid)
+    name: Optional[str] = None
+    key_code: Optional[str] = Field(default=None, unique=True)
+    priority: Optional[int] = None
+    description: Optional[str] = None
+    user_prefer: bool = True
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class ActiveProtocol(SQLModel, table=True):
+    __tablename__ = "ActiveProtocol"
+    id: str = Field(primary_key=True, default_factory=gen_uuid)
+    protocol_id: Optional[str] = Field(default=None, foreign_key="Protocol.id")
+    activated_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
 
 
 class UserSettings(SQLModel, table=True):

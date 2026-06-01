@@ -7,32 +7,52 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlmodel import Session, select, and_
 from database import get_session
-from models import FocusSession
-from utils import camelify, today_str
+from models import FocusSession, Task
+from utils import today_str
 
 router = APIRouter()
 
+_STATUS_TO   = {"completed": "Completed", "interrupted": "Interrupted"}
+_STATUS_FROM = {"Completed": "completed", "Interrupted": "interrupted"}
 
-def serialize_session(s: FocusSession) -> dict:
-    return camelify(s.model_dump())
+
+def serialize_session(fs: FocusSession, session: Session) -> dict:
+    task_title: Optional[str] = None
+    if fs.task_id:
+        t = session.get(Task, fs.task_id)
+        task_title = t.title if t else None
+
+    return {
+        "id": fs.id,
+        "taskId": fs.task_id,
+        "taskTitle": task_title,
+        "durationMinutes": fs.actual_duration or 0,
+        "status": _STATUS_FROM.get(fs.status, fs.status.lower()),
+        "startedAt": fs.started_at.isoformat(),
+        "endedAt": fs.ended_at.isoformat() if fs.ended_at else None,
+        "notes": None,
+    }
+
+
+def _parse_dt(s: str) -> datetime:
+    return datetime.fromisoformat(s.replace("Z", "+00:00")) if "Z" in s else datetime.fromisoformat(s)
 
 
 @router.get("/focus/stats")
 def get_focus_stats(session: Session = Depends(get_session)):
     now = datetime.utcnow()
     today_str_val = now.strftime("%Y-%m-%d")
-    week_ago = now - timedelta(days=6)
-    week_start = week_ago.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start = (now - timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
 
     all_sessions = session.exec(
         select(FocusSession).where(FocusSession.started_at >= week_start)
     ).all()
 
     today_sessions = [s for s in all_sessions if s.started_at.strftime("%Y-%m-%d") == today_str_val]
-    today_minutes = sum(s.duration_minutes for s in today_sessions)
-    week_minutes = sum(s.duration_minutes for s in all_sessions)
+    today_minutes = sum(s.actual_duration or 0 for s in today_sessions)
+    week_minutes = sum(s.actual_duration or 0 for s in all_sessions)
 
-    daily_map = {}
+    daily_map: dict = {}
     for i in range(6, -1, -1):
         d = (now - timedelta(days=i)).strftime("%Y-%m-%d")
         daily_map[d] = {"minutes": 0, "sessions": 0}
@@ -40,18 +60,21 @@ def get_focus_stats(session: Session = Depends(get_session)):
     for s in all_sessions:
         key = s.started_at.strftime("%Y-%m-%d")
         if key in daily_map:
-            daily_map[key]["minutes"] += s.duration_minutes
+            daily_map[key]["minutes"] += s.actual_duration or 0
             daily_map[key]["sessions"] += 1
 
-    daily_breakdown = [{"date": d, **v} for d, v in daily_map.items()]
+    daily_breakdown = [
+        {"date": d, "minutes": v["minutes"], "sessions": v["sessions"]}
+        for d, v in daily_map.items()
+    ]
 
-    return JSONResponse(content=camelify({
-        "today_minutes": today_minutes,
-        "week_minutes": week_minutes,
-        "today_sessions": len(today_sessions),
-        "week_sessions": len(all_sessions),
-        "daily_breakdown": [camelify({"date": d["date"], "minutes": d["minutes"], "sessions": d["sessions"]}) for d in daily_breakdown],
-    }))
+    return JSONResponse(content={
+        "todayMinutes": today_minutes,
+        "weekMinutes": week_minutes,
+        "todaySessions": len(today_sessions),
+        "weekSessions": len(all_sessions),
+        "dailyBreakdown": daily_breakdown,
+    })
 
 
 @router.get("/focus")
@@ -67,7 +90,7 @@ def list_focus_sessions(date: Optional[str] = None, session: Session = Depends(g
     else:
         sessions = session.exec(select(FocusSession)).all()
 
-    return JSONResponse(content=[serialize_session(s) for s in sessions])
+    return JSONResponse(content=[serialize_session(s, session) for s in sessions])
 
 
 class CreateFocusBody(BaseModel):
@@ -89,24 +112,22 @@ class UpdateFocusBody(BaseModel):
 
 @router.post("/focus", status_code=201)
 def create_focus_session(body: CreateFocusBody, session: Session = Depends(get_session)):
-    started_at = datetime.fromisoformat(body.startedAt.replace("Z", "+00:00")) if "Z" in body.startedAt else datetime.fromisoformat(body.startedAt)
-    ended_at = None
-    if body.endedAt:
-        ended_at = datetime.fromisoformat(body.endedAt.replace("Z", "+00:00")) if "Z" in body.endedAt else datetime.fromisoformat(body.endedAt)
+    started_at = _parse_dt(body.startedAt)
+    ended_at = _parse_dt(body.endedAt) if body.endedAt else None
+    stored_status = _STATUS_TO.get(body.status, "Completed")
 
     fs = FocusSession(
         task_id=body.taskId,
-        task_title=body.taskTitle,
-        duration_minutes=body.durationMinutes,
-        status=body.status,
+        actual_duration=body.durationMinutes,
+        planned_duration=body.durationMinutes,
+        status=stored_status,
         started_at=started_at,
         ended_at=ended_at,
-        notes=body.notes,
     )
     session.add(fs)
     session.commit()
     session.refresh(fs)
-    return JSONResponse(content=serialize_session(fs), status_code=201)
+    return JSONResponse(content=serialize_session(fs, session), status_code=201)
 
 
 @router.patch("/focus/{session_id}")
@@ -116,18 +137,16 @@ def update_focus_session(session_id: str, body: UpdateFocusBody, session: Sessio
         raise HTTPException(status_code=404, detail="Focus session not found")
 
     if body.durationMinutes is not None:
-        fs.duration_minutes = body.durationMinutes
+        fs.actual_duration = body.durationMinutes
     if body.status is not None:
-        fs.status = body.status
+        fs.status = _STATUS_TO.get(body.status, body.status)
     if body.endedAt is not None:
-        fs.ended_at = datetime.fromisoformat(body.endedAt.replace("Z", "+00:00")) if "Z" in body.endedAt else datetime.fromisoformat(body.endedAt)
-    if body.notes is not None:
-        fs.notes = body.notes
+        fs.ended_at = _parse_dt(body.endedAt)
 
     session.add(fs)
     session.commit()
     session.refresh(fs)
-    return JSONResponse(content=serialize_session(fs))
+    return JSONResponse(content=serialize_session(fs, session))
 
 
 @router.delete("/focus/{session_id}", status_code=204)

@@ -136,6 +136,9 @@ export type HabitType = (typeof HabitType)[keyof typeof HabitType];
 export const HabitType = {
   positive: "positive",
   negative: "negative",
+  Binary: "Binary",
+  Numeric: "Numeric",
+  Timer: "Timer",
 } as const;
 
 export interface Habit {
@@ -236,6 +239,9 @@ export type HabitWithStatusType =
 export const HabitWithStatusType = {
   positive: "positive",
   negative: "negative",
+  Binary: "Binary",
+  Numeric: "Numeric",
+  Timer: "Timer",
 } as const;
 
 export interface HabitWithStatus {

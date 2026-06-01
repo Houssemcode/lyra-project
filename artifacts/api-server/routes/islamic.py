@@ -7,35 +7,84 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlmodel import Session, select, and_
 from database import get_session
-from models import QuranProgress, IslamicActivity, ActivityLog
-from utils import camelify, today_str
+from models import Khatmah, IslamicActivity, ActivityLog
+from utils import today_str
 
 router = APIRouter()
 
+# ─── Type→category bridge so existing frontend icons still work ───────────────
+_TYPE_TO_CATEGORY = {
+    "fard":     "prayer",
+    "sunnah":   "sunnah",
+    "mostahab": "other",
+}
 
-def serialize_quran(p: QuranProgress) -> dict:
-    d = camelify(p.model_dump())
-    pages_left = p.total_pages - p.current_page
-    percent_complete = round((p.current_page / p.total_pages) * 100)
+_LOG_STATUS_TO   = {"completed": "Completed", "intended": "Intended"}
+_LOG_STATUS_FROM = {"Completed": "completed", "Intended": "intended"}
+
+
+# ─── Serializers ─────────────────────────────────────────────────────────────
+def serialize_khatmah(k: Khatmah) -> dict:
+    pages_left = k.total_pages - k.current_page
+    percent_complete = round((k.current_page / k.total_pages) * 100) if k.total_pages else 0
     days_to_complete = None
-    if p.target_date:
-        target = date_cls.fromisoformat(p.target_date)
+    daily_target = 2
+    if k.target_date:
+        target = date_cls.fromisoformat(k.target_date)
         days_to_complete = max(0, (target - date_cls.today()).days)
-    d["pagesLeft"] = pages_left
-    d["percentComplete"] = percent_complete
-    d["daysToComplete"] = days_to_complete
-    return d
+        if days_to_complete > 0:
+            daily_target = max(1, -(-pages_left // days_to_complete))
+    return {
+        "id": k.id,
+        "name": k.name,
+        "type": k.type,
+        "status": k.status,
+        "currentSurah": 1,
+        "currentPage": k.current_page,
+        "totalPages": k.total_pages,
+        "targetDate": k.target_date,
+        "dailyTarget": daily_target,
+        "pagesLeft": pages_left,
+        "percentComplete": percent_complete,
+        "daysToComplete": days_to_complete,
+        "notes": None,
+        "updatedAt": k.created_at.isoformat(),
+        "createdAt": k.created_at.isoformat(),
+    }
 
 
 def serialize_deed(a: IslamicActivity) -> dict:
-    return camelify(a.model_dump())
+    return {
+        "id": a.id,
+        "name": a.name,
+        "arabicName": None,
+        "rewardText": a.reward_text or "",
+        "category": _TYPE_TO_CATEGORY.get(a.type, "other"),
+        "hijriMonth": a.hijri_month,
+        "hijriDay": a.hijri_day,
+        "dayOfWeek": None,
+        "isActive": not a.is_archived,
+        "sortOrder": 0,
+        "type": a.type,
+        "createdAt": a.created_at.isoformat(),
+    }
 
 
-def serialize_log(l: ActivityLog) -> dict:
-    return camelify(l.model_dump())
+def serialize_log(lg: ActivityLog) -> dict:
+    return {
+        "id": lg.id,
+        "activityId": lg.activity_id,
+        "status": _LOG_STATUS_FROM.get(lg.status, "completed"),
+        "date": lg.logged_at.strftime("%Y-%m-%d"),
+        "hijriDate": lg.hijri_date,
+        "notes": None,
+        "loggedAt": lg.logged_at.isoformat(),
+    }
 
 
+# ─── Request bodies ───────────────────────────────────────────────────────────
 class InitQuranBody(BaseModel):
+    name: Optional[str] = "My Khatmah"
     targetDate: Optional[str] = None
     currentSurah: Optional[int] = None
     currentPage: Optional[int] = None
@@ -58,122 +107,110 @@ class LogDeedBody(BaseModel):
     notes: Optional[str] = None
 
 
+# ─── Khatmah (Quran progress) routes ─────────────────────────────────────────
 @router.get("/quran")
 def get_quran(session: Session = Depends(get_session)):
-    progress = session.exec(select(QuranProgress).order_by(QuranProgress.created_at)).first()
-    if not progress:
-        raise HTTPException(status_code=404, detail="No Quran progress found")
-    return JSONResponse(content=serialize_quran(progress))
+    k = session.exec(
+        select(Khatmah).where(Khatmah.is_archived == False).order_by(Khatmah.created_at)
+    ).first()
+    if not k:
+        raise HTTPException(status_code=404, detail="No Khatmah found")
+    return JSONResponse(content=serialize_khatmah(k))
 
 
 @router.post("/quran", status_code=201)
 def init_quran(body: InitQuranBody, session: Session = Depends(get_session)):
     current_page = body.currentPage or 1
-    daily_target = body.dailyTarget or 2
-    if body.targetDate and not body.dailyTarget:
-        target = date_cls.fromisoformat(body.targetDate)
-        days_left = max(1, (target - date_cls.today()).days)
-        pages_left = 604 - current_page
-        daily_target = max(1, -(-pages_left // days_left))
-
-    progress = QuranProgress(
+    k = Khatmah(
+        name=body.name or "My Khatmah",
         target_date=body.targetDate,
-        current_surah=body.currentSurah or 1,
         current_page=current_page,
-        daily_target=daily_target,
-        notes=body.notes,
     )
-    session.add(progress)
+    session.add(k)
     session.commit()
-    session.refresh(progress)
-    return JSONResponse(content=serialize_quran(progress), status_code=201)
+    session.refresh(k)
+    return JSONResponse(content=serialize_khatmah(k), status_code=201)
 
 
 @router.patch("/quran")
 def update_quran(body: UpdateQuranBody, session: Session = Depends(get_session)):
-    progress = session.exec(select(QuranProgress)).first()
-    if not progress:
-        raise HTTPException(status_code=404, detail="No Quran progress found. Initialize first.")
+    k = session.exec(select(Khatmah).where(Khatmah.is_archived == False)).first()
+    if not k:
+        raise HTTPException(status_code=404, detail="No Khatmah found. Initialize first.")
 
     if body.currentPage is not None:
-        progress.current_page = body.currentPage
-    if body.currentSurah is not None:
-        progress.current_surah = body.currentSurah
+        k.current_page = body.currentPage
     if body.targetDate is not None:
-        progress.target_date = body.targetDate
-    if body.dailyTarget is not None:
-        progress.daily_target = body.dailyTarget
-    if body.notes is not None:
-        progress.notes = body.notes
+        k.target_date = body.targetDate
 
-    if body.targetDate and not body.dailyTarget:
-        target = date_cls.fromisoformat(body.targetDate)
-        days_left = max(1, (target - date_cls.today()).days)
-        current_page = body.currentPage if body.currentPage is not None else progress.current_page
-        pages_left = 604 - current_page
-        progress.daily_target = max(1, -(-pages_left // days_left))
-
-    progress.updated_at = datetime.utcnow()
-    session.add(progress)
+    session.add(k)
     session.commit()
-    session.refresh(progress)
-    return JSONResponse(content=serialize_quran(progress))
+    session.refresh(k)
+    return JSONResponse(content=serialize_khatmah(k))
 
 
+# ─── Deeds routes ─────────────────────────────────────────────────────────────
 @router.get("/deeds")
 def list_deeds(
     todayOnly: Optional[str] = None,
     date: Optional[str] = None,
     session: Session = Depends(get_session),
 ):
-    target_date = date or today_str()
-    day_of_week = date_cls.fromisoformat(target_date).weekday()
-    python_to_js_day = (day_of_week + 1) % 7
-
     deeds = session.exec(
-        select(IslamicActivity).where(IslamicActivity.is_active == True)
+        select(IslamicActivity).where(IslamicActivity.is_archived == False)
     ).all()
 
     if todayOnly == "true":
-        deeds = [d for d in deeds if d.day_of_week is None or d.day_of_week == python_to_js_day]
+        from utils import get_hijri_day
+        target_date = date or today_str()
+        hijri_day = get_hijri_day(target_date)
+        deeds = [d for d in deeds if d.hijri_day is None or d.hijri_day == hijri_day]
 
-    deeds = sorted(deeds, key=lambda d: d.sort_order)
     return JSONResponse(content=[serialize_deed(d) for d in deeds])
 
 
 @router.post("/deeds/{deed_id}/log", status_code=201)
 def log_deed(deed_id: str, body: LogDeedBody, session: Session = Depends(get_session)):
+    stored_status = _LOG_STATUS_TO.get(body.status or "completed", "Completed")
     log_date = body.date or today_str()
-    log = ActivityLog(
+    lg = ActivityLog(
         activity_id=deed_id,
-        status=body.status or "completed",
-        date=log_date,
+        status=stored_status,
         hijri_date=body.hijriDate,
-        notes=body.notes,
+        logged_at=datetime.fromisoformat(log_date + "T12:00:00"),
     )
-    session.add(log)
+    session.add(lg)
     session.commit()
-    session.refresh(log)
-    return JSONResponse(content=serialize_log(log), status_code=201)
+    session.refresh(lg)
+    return JSONResponse(content=serialize_log(lg), status_code=201)
 
 
 @router.get("/deeds/logs")
 def get_deed_logs(date: Optional[str] = None, session: Session = Depends(get_session)):
     target_date = date or today_str()
-    logs = session.exec(select(ActivityLog).where(ActivityLog.date == target_date)).all()
-    activity_ids = list({l.activity_id for l in logs})
-    activities = {a.id: a for a in session.exec(
-        select(IslamicActivity).where(IslamicActivity.id.in_(activity_ids))
-    ).all()} if activity_ids else {}
+    start = datetime.fromisoformat(target_date + "T00:00:00")
+    end = datetime.fromisoformat(target_date + "T23:59:59")
+    logs = session.exec(
+        select(ActivityLog).where(
+            and_(ActivityLog.logged_at >= start, ActivityLog.logged_at <= end)
+        )
+    ).all()
+
+    activity_ids = list({lg.activity_id for lg in logs})
+    activities = {}
+    if activity_ids:
+        activities = {a.id: a for a in session.exec(
+            select(IslamicActivity).where(IslamicActivity.id.in_(activity_ids))
+        ).all()}
 
     result = []
-    for l in logs:
-        d = serialize_log(l)
-        act = activities.get(l.activity_id)
+    for lg in logs:
+        d = serialize_log(lg)
+        act = activities.get(lg.activity_id)
         if act:
             d["activityName"] = act.name
-            d["activityCategory"] = act.category
-            d["activityRewardText"] = act.reward_text
+            d["activityCategory"] = _TYPE_TO_CATEGORY.get(act.type, "other")
+            d["activityRewardText"] = act.reward_text or ""
         result.append(d)
 
     return JSONResponse(content=result)

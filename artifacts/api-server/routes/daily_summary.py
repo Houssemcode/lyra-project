@@ -4,11 +4,11 @@ from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
 from sqlmodel import Session, select, and_
 from database import get_session
-from models import Task, Habit, HabitLog, Event, Prayer, FocusSession, ActivityLog, IslamicActivity, QuranProgress
-from utils import camelify, today_str
+from models import Task, Habit, HabitLog, CalendarEvent, PrayerLog, FocusSession, ActivityLog, IslamicActivity, Khatmah
+from utils import today_str
+from routes.events import serialize_event
 
 router = APIRouter()
 
@@ -19,62 +19,66 @@ def get_daily_summary(date: Optional[str] = None, session: Session = Depends(get
     day_start = datetime.fromisoformat(target_date + "T00:00:00")
     day_end = datetime.fromisoformat(target_date + "T23:59:59")
 
-    tasks_list = session.exec(select(Task).where(Task.due_date == target_date)).all()
+    tasks_list = session.exec(
+        select(Task).where(and_(Task.start_time >= day_start, Task.start_time <= day_end, Task.is_archived == False))
+    ).all()
     habits_list = session.exec(select(Habit).where(Habit.is_archived == False)).all()
     habit_logs = session.exec(select(HabitLog).where(HabitLog.date == target_date)).all()
     events_list = session.exec(
-        select(Event).where(and_(Event.start_time >= day_start, Event.start_time <= day_end))
+        select(CalendarEvent).where(and_(CalendarEvent.start_time >= day_start, CalendarEvent.start_time <= day_end))
     ).all()
-    prayers_list = session.exec(select(Prayer).where(Prayer.date == target_date)).all()
+    prayers_list = session.exec(select(PrayerLog).where(PrayerLog.date == target_date)).all()
     focus_list = session.exec(
         select(FocusSession).where(and_(FocusSession.started_at >= day_start, FocusSession.started_at <= day_end))
     ).all()
-    deed_logs = session.exec(select(ActivityLog).where(ActivityLog.date == target_date)).all()
-    all_deeds = session.exec(select(IslamicActivity).where(IslamicActivity.is_active == True)).all()
-    quran_record = session.exec(select(QuranProgress)).first()
+    deed_logs = session.exec(
+        select(ActivityLog).where(and_(ActivityLog.logged_at >= day_start, ActivityLog.logged_at <= day_end))
+    ).all()
+    all_deeds = session.exec(select(IslamicActivity).where(IslamicActivity.is_archived == False)).all()
+    khatmah = session.exec(select(Khatmah).where(Khatmah.is_archived == False)).first()
 
-    log_map = {l.habit_id: l.status for l in habit_logs}
+    log_map = {lg.habit_id: lg.status for lg in habit_logs}
     deed_name_map = {a.id: a.name for a in all_deeds}
 
-    completed_deed_logs = [l for l in deed_logs if l.status == "completed"]
-    completed_deed_names = [deed_name_map.get(l.activity_id, "Unknown Deed") for l in completed_deed_logs]
+    completed_deed_logs = [lg for lg in deed_logs if lg.status == "Completed"]
+    completed_deed_names = [deed_name_map.get(lg.activity_id, "Unknown Deed") for lg in completed_deed_logs]
 
     summary = {
         "date": target_date,
         "tasks": {
             "total": len(tasks_list),
-            "done": sum(1 for t in tasks_list if t.status == "done"),
-            "pending": sum(1 for t in tasks_list if t.status == "pending"),
-            "completedTitles": [t.title for t in tasks_list if t.status == "done"],
+            "done": sum(1 for t in tasks_list if t.status == "Done"),
+            "pending": sum(1 for t in tasks_list if t.status == "Pending"),
+            "completedTitles": [t.title for t in tasks_list if t.status == "Done"],
         },
         "habits": {
             "total": len(habits_list),
-            "completed": sum(1 for l in habit_logs if l.status == "completed"),
-            "skipped": sum(1 for l in habit_logs if l.status == "skipped"),
-            "missed": sum(1 for l in habit_logs if l.status == "missed"),
-            "completedNames": [h.name for h in habits_list if log_map.get(h.id) == "completed"],
+            "completed": sum(1 for lg in habit_logs if lg.status == "Completed"),
+            "skipped": sum(1 for lg in habit_logs if lg.status == "Skipped"),
+            "missed": sum(1 for lg in habit_logs if lg.status == "Failed"),
+            "completedNames": [h.name for h in habits_list if log_map.get(h.id) == "Completed"],
         },
         "prayers": {
             "total": len(prayers_list),
-            "onTime": sum(1 for p in prayers_list if p.status == "on_time"),
-            "late": sum(1 for p in prayers_list if p.status == "late"),
-            "missed": sum(1 for p in prayers_list if p.status == "missed"),
-            "pending": sum(1 for p in prayers_list if p.status == "pending"),
+            "onTime": sum(1 for p in prayers_list if p.status == "On_Time"),
+            "late": sum(1 for p in prayers_list if p.status == "Late"),
+            "missed": sum(1 for p in prayers_list if p.status == "Missed"),
+            "pending": sum(1 for p in prayers_list if p.status is None),
         },
         "focus": {
-            "totalMinutes": sum(s.duration_minutes for s in focus_list),
+            "totalMinutes": sum(s.actual_duration or 0 for s in focus_list),
             "totalSessions": len(focus_list),
-            "completedSessions": sum(1 for s in focus_list if s.status == "completed"),
+            "completedSessions": sum(1 for s in focus_list if s.status == "Completed"),
         },
         "islamic": {
             "deedsTotal": len(all_deeds),
             "deedsCompleted": len(completed_deed_logs),
             "completedDeedNames": completed_deed_names,
-            "quranPage": quran_record.current_page if quran_record else None,
-            "quranPercent": round(((quran_record.current_page - 1) / (quran_record.total_pages - 1)) * 100) if quran_record else None,
+            "quranPage": khatmah.current_page if khatmah else None,
+            "quranPercent": round((khatmah.current_page / khatmah.total_pages) * 100) if khatmah else None,
             "quranPagesReadToday": 0,
         },
-        "events": [camelify(e.model_dump()) for e in events_list],
+        "events": [serialize_event(e) for e in events_list],
     }
 
     return JSONResponse(content=summary)

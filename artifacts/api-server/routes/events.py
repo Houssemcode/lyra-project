@@ -7,14 +7,34 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlmodel import Session, select, and_
 from database import get_session
-from models import Event
-from utils import camelify
+from models import CalendarEvent
 
 router = APIRouter()
 
+_TYPE_FROM = {
+    "Native": "native",
+    "Task_Import": "task",
+    "Prayer_Import": "prayer",
+}
 
-def serialize_event(e: Event) -> dict:
-    return camelify(e.model_dump())
+
+def _parse_dt(s: str) -> datetime:
+    return datetime.fromisoformat(s.replace("Z", "+00:00")) if "Z" in s else datetime.fromisoformat(s)
+
+
+def serialize_event(e: CalendarEvent) -> dict:
+    return {
+        "id": e.id,
+        "title": e.title,
+        "description": e.description,
+        "location": e.location,
+        "startTime": e.start_time.isoformat(),
+        "endTime": e.end_time.isoformat() if e.end_time else None,
+        "allDay": e.is_all_day,
+        "category": None,
+        "source": _TYPE_FROM.get(e.event_type, "native"),
+        "createdAt": e.created_at.isoformat(),
+    }
 
 
 class CreateEventBody(BaseModel):
@@ -43,38 +63,27 @@ def list_events(
     end: Optional[str] = None,
     session: Session = Depends(get_session),
 ):
-    conditions = []
+    conditions = [CalendarEvent.is_archived == False]
     if start:
-        start_dt = datetime.fromisoformat(start.replace("Z", "+00:00")) if "Z" in start or "+" in start else datetime.fromisoformat(start)
-        conditions.append(Event.start_time >= start_dt)
+        conditions.append(CalendarEvent.start_time >= _parse_dt(start))
     if end:
         end_dt = datetime.fromisoformat((end + "T23:59:59").replace("Z", ""))
-        conditions.append(Event.start_time <= end_dt)
+        conditions.append(CalendarEvent.start_time <= end_dt)
 
-    query = select(Event)
-    if conditions:
-        query = query.where(and_(*conditions))
-
-    events = session.exec(query).all()
+    events = session.exec(select(CalendarEvent).where(and_(*conditions))).all()
     return JSONResponse(content=[serialize_event(e) for e in events])
 
 
 @router.post("/events", status_code=201)
 def create_event(body: CreateEventBody, session: Session = Depends(get_session)):
-    start_time = datetime.fromisoformat(body.startTime.replace("Z", "+00:00")) if "Z" in body.startTime else datetime.fromisoformat(body.startTime)
-    end_time = None
-    if body.endTime:
-        end_time = datetime.fromisoformat(body.endTime.replace("Z", "+00:00")) if "Z" in body.endTime else datetime.fromisoformat(body.endTime)
-
-    event = Event(
+    event = CalendarEvent(
         title=body.title,
         description=body.description,
         location=body.location,
-        start_time=start_time,
-        end_time=end_time,
-        all_day=body.allDay or False,
-        category=body.category,
-        source="native",
+        start_time=_parse_dt(body.startTime),
+        end_time=_parse_dt(body.endTime) if body.endTime else None,
+        is_all_day=body.allDay or False,
+        event_type="Native",
     )
     session.add(event)
     session.commit()
@@ -84,7 +93,7 @@ def create_event(body: CreateEventBody, session: Session = Depends(get_session))
 
 @router.patch("/events/{event_id}")
 def update_event(event_id: str, body: UpdateEventBody, session: Session = Depends(get_session)):
-    event = session.get(Event, event_id)
+    event = session.get(CalendarEvent, event_id)
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
 
@@ -95,13 +104,11 @@ def update_event(event_id: str, body: UpdateEventBody, session: Session = Depend
     if body.location is not None:
         event.location = body.location
     if body.startTime is not None:
-        event.start_time = datetime.fromisoformat(body.startTime.replace("Z", "+00:00")) if "Z" in body.startTime else datetime.fromisoformat(body.startTime)
+        event.start_time = _parse_dt(body.startTime)
     if body.endTime is not None:
-        event.end_time = datetime.fromisoformat(body.endTime.replace("Z", "+00:00")) if "Z" in body.endTime else datetime.fromisoformat(body.endTime)
+        event.end_time = _parse_dt(body.endTime)
     if body.allDay is not None:
-        event.all_day = body.allDay
-    if body.category is not None:
-        event.category = body.category
+        event.is_all_day = body.allDay
 
     session.add(event)
     session.commit()
@@ -111,7 +118,7 @@ def update_event(event_id: str, body: UpdateEventBody, session: Session = Depend
 
 @router.delete("/events/{event_id}", status_code=204)
 def delete_event(event_id: str, session: Session = Depends(get_session)):
-    event = session.get(Event, event_id)
+    event = session.get(CalendarEvent, event_id)
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
     session.delete(event)

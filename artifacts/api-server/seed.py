@@ -1,42 +1,47 @@
 from sqlmodel import Session, select
-from models import IslamicActivity
+from models import IslamicActivity, Routine
 
+DEFAULT_ROUTINES = ["Morning", "Afternoon", "Evening", "Anytime"]
 
 DEEDS = [
-    {"name": "Fajr Prayer", "arabic_name": "صلاة الفجر", "reward_text": "Better than the world and everything in it", "category": "prayer", "sort_order": 1},
-    {"name": "Dhuhr Prayer", "arabic_name": "صلاة الظهر", "reward_text": "Angels witness and record your prayer", "category": "prayer", "sort_order": 2},
-    {"name": "Asr Prayer", "arabic_name": "صلاة العصر", "reward_text": "Whoever misses it is as if he lost his family and wealth", "category": "prayer", "sort_order": 3},
-    {"name": "Maghrib Prayer", "arabic_name": "صلاة المغرب", "reward_text": "The gates of Paradise open at Maghrib time", "category": "prayer", "sort_order": 4},
-    {"name": "Isha Prayer", "arabic_name": "صلاة العشاء", "reward_text": "Praying Isha in congregation equals half the night in prayer", "category": "prayer", "sort_order": 5},
-    {"name": "Morning Dhikr", "arabic_name": "أذكار الصباح", "reward_text": "Protection and blessings throughout the day", "category": "dhikr", "sort_order": 10},
-    {"name": "Evening Dhikr", "arabic_name": "أذكار المساء", "reward_text": "Protection and blessings throughout the night", "category": "dhikr", "sort_order": 11},
-    {"name": "Quran Recitation", "arabic_name": "تلاوة القرآن", "reward_text": "10 rewards per letter recited", "category": "quran", "sort_order": 20},
-    {"name": "Jumu'ah Prayer", "arabic_name": "صلاة الجمعة", "reward_text": "Sins between two Fridays are expiated", "category": "jumu'ah", "day_of_week": 5, "sort_order": 30},
-    {"name": "Monday Fast", "arabic_name": "صيام الاثنين", "reward_text": "Deeds are presented to Allah on Mondays", "category": "fasting", "day_of_week": 1, "sort_order": 40},
-    {"name": "Thursday Fast", "arabic_name": "صيام الخميس", "reward_text": "Deeds are presented to Allah on Thursdays", "category": "fasting", "day_of_week": 4, "sort_order": 41},
-    {"name": "Sadaqah", "arabic_name": "الصدقة", "reward_text": "Charity extinguishes sin as water extinguishes fire", "category": "charity", "sort_order": 50},
-    {"name": "White Days Fast (13th)", "arabic_name": "صيام أيام البيض", "reward_text": "Fasting three days a month is like fasting all year", "category": "fasting", "hijri_day": 13, "sort_order": 42},
-    {"name": "White Days Fast (14th)", "arabic_name": "صيام أيام البيض", "reward_text": "Fasting three days a month is like fasting all year", "category": "fasting", "hijri_day": 14, "sort_order": 43},
-    {"name": "White Days Fast (15th)", "arabic_name": "صيام أيام البيض", "reward_text": "Fasting three days a month is like fasting all year", "category": "fasting", "hijri_day": 15, "sort_order": 44},
+    {"name": "Fajr Prayer",           "reward_text": "Better than the world and everything in it",                            "type": "fard"},
+    {"name": "Dhuhr Prayer",          "reward_text": "Angels witness and record your prayer",                                   "type": "fard"},
+    {"name": "Asr Prayer",            "reward_text": "Whoever misses it is as if he lost his family and wealth",               "type": "fard"},
+    {"name": "Maghrib Prayer",        "reward_text": "The gates of Paradise open at Maghrib time",                             "type": "fard"},
+    {"name": "Isha Prayer",           "reward_text": "Praying Isha in congregation equals half the night in prayer",           "type": "fard"},
+    {"name": "Morning Dhikr",         "reward_text": "Protection and blessings throughout the day",                            "type": "sunnah"},
+    {"name": "Evening Dhikr",         "reward_text": "Protection and blessings throughout the night",                          "type": "sunnah"},
+    {"name": "Quran Recitation",      "reward_text": "10 rewards per letter recited",                                           "type": "sunnah"},
+    {"name": "Jumu'ah Prayer",        "reward_text": "Sins between two Fridays are expiated",                                  "type": "fard"},
+    {"name": "Monday Fast",           "reward_text": "Deeds are presented to Allah on Mondays",                                "type": "sunnah"},
+    {"name": "Thursday Fast",         "reward_text": "Deeds are presented to Allah on Thursdays",                              "type": "sunnah"},
+    {"name": "Sadaqah",               "reward_text": "Charity extinguishes sin as water extinguishes fire",                    "type": "mostahab"},
+    {"name": "White Days Fast (13th)","reward_text": "Fasting three days a month is like fasting all year", "hijri_day": 13,  "type": "sunnah"},
+    {"name": "White Days Fast (14th)","reward_text": "Fasting three days a month is like fasting all year", "hijri_day": 14,  "type": "sunnah"},
+    {"name": "White Days Fast (15th)","reward_text": "Fasting three days a month is like fasting all year", "hijri_day": 15,  "type": "sunnah"},
 ]
+
+
+def seed_routines(session: Session):
+    existing = session.exec(select(Routine)).all()
+    existing_names = {r.name for r in existing}
+    for name in DEFAULT_ROUTINES:
+        if name not in existing_names:
+            session.add(Routine(name=name, is_default=True))
+    session.commit()
 
 
 def seed_islamic_activities(session: Session):
     existing = session.exec(select(IslamicActivity)).all()
     if existing:
         return
-
     for deed_data in DEEDS:
         deed = IslamicActivity(
             name=deed_data["name"],
-            arabic_name=deed_data.get("arabic_name"),
-            reward_text=deed_data["reward_text"],
-            category=deed_data["category"],
+            reward_text=deed_data.get("reward_text"),
             hijri_month=deed_data.get("hijri_month"),
             hijri_day=deed_data.get("hijri_day"),
-            day_of_week=deed_data.get("day_of_week"),
-            is_active=True,
-            sort_order=deed_data.get("sort_order", 0),
+            type=deed_data.get("type", "sunnah"),
         )
         session.add(deed)
     session.commit()

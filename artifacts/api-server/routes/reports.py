@@ -6,8 +6,8 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 from sqlmodel import Session, select, and_
 from database import get_session
-from models import Task, Habit, HabitLog, Prayer, FocusSession, ActivityLog
-from utils import camelify, today_str
+from models import Task, Habit, HabitLog, PrayerLog, FocusSession, ActivityLog
+from utils import today_str
 
 router = APIRouter()
 
@@ -65,7 +65,7 @@ def get_report(
 
     completed_tasks = session.exec(
         select(Task).where(
-            and_(Task.status == "done", Task.completed_at >= start_ts, Task.completed_at <= end_ts)
+            and_(Task.status == "Done", Task.completed_at >= start_ts, Task.completed_at <= end_ts)
         )
     ).all()
 
@@ -74,7 +74,7 @@ def get_report(
     ).all()
 
     prayers = session.exec(
-        select(Prayer).where(and_(Prayer.date >= start_str, Prayer.date <= end_str))
+        select(PrayerLog).where(and_(PrayerLog.date >= start_str, PrayerLog.date <= end_str))
     ).all()
 
     focus_sessions = session.exec(
@@ -84,54 +84,57 @@ def get_report(
     ).all()
 
     deed_logs = session.exec(
-        select(ActivityLog).where(and_(ActivityLog.date >= start_str, ActivityLog.date <= end_str))
+        select(ActivityLog).where(
+            and_(ActivityLog.logged_at >= start_ts, ActivityLog.logged_at <= end_ts)
+        )
     ).all()
 
     all_habits = session.exec(select(Habit).where(Habit.is_archived == False)).all()
     total_habits = len(all_habits)
 
-    tasks_by_day = {}
+    tasks_by_day: dict = {}
     for t in completed_tasks:
         if t.completed_at:
             d = t.completed_at.strftime("%Y-%m-%d")
             tasks_by_day[d] = tasks_by_day.get(d, 0) + 1
 
-    habit_day_map = {}
-    for l in habit_logs:
-        if l.date not in habit_day_map:
-            habit_day_map[l.date] = {"completed": set(), "logged": set()}
-        habit_day_map[l.date]["logged"].add(l.habit_id)
-        if l.status == "completed":
-            habit_day_map[l.date]["completed"].add(l.habit_id)
+    habit_day_map: dict = {}
+    for lg in habit_logs:
+        if lg.date not in habit_day_map:
+            habit_day_map[lg.date] = {"completed": set(), "logged": set()}
+        habit_day_map[lg.date]["logged"].add(lg.habit_id)
+        if lg.status == "Completed":
+            habit_day_map[lg.date]["completed"].add(lg.habit_id)
 
-    habit_completed_days = {}
-    for l in habit_logs:
-        if l.status == "completed":
-            habit_completed_days[l.habit_id] = habit_completed_days.get(l.habit_id, 0) + 1
+    habit_completed_days: dict = {}
+    for lg in habit_logs:
+        if lg.status == "Completed":
+            habit_completed_days[lg.habit_id] = habit_completed_days.get(lg.habit_id, 0) + 1
 
-    prayer_day_map = {}
+    prayer_day_map: dict = {}
     for p in prayers:
         if p.date not in prayer_day_map:
             prayer_day_map[p.date] = {"on_time": 0, "late": 0, "missed": 0}
-        if p.status == "on_time":
+        if p.status == "On_Time":
             prayer_day_map[p.date]["on_time"] += 1
-        elif p.status == "late":
+        elif p.status == "Late":
             prayer_day_map[p.date]["late"] += 1
-        elif p.status == "missed":
+        elif p.status == "Missed":
             prayer_day_map[p.date]["missed"] += 1
 
-    focus_day_map = {}
+    focus_day_map: dict = {}
     for s in focus_sessions:
         d = s.started_at.strftime("%Y-%m-%d")
         if d not in focus_day_map:
             focus_day_map[d] = {"minutes": 0, "sessions": 0}
-        focus_day_map[d]["minutes"] += s.duration_minutes
+        focus_day_map[d]["minutes"] += s.actual_duration or 0
         focus_day_map[d]["sessions"] += 1
 
-    deed_day_map = {}
+    deed_day_map: dict = {}
     for dl in deed_logs:
-        if dl.status == "completed":
-            deed_day_map[dl.date] = deed_day_map.get(dl.date, 0) + 1
+        if dl.status == "Completed":
+            d = dl.logged_at.strftime("%Y-%m-%d")
+            deed_day_map[d] = deed_day_map.get(d, 0) + 1
 
     day_stats = []
     for d in days:
