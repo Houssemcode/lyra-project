@@ -4,7 +4,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/App";
-import { useClerk, useUser } from "@clerk/react";
+import { useAuth } from "@/App";
 
 const navItems = [
   { href: "/", label: "Today", icon: LayoutDashboard },
@@ -21,14 +21,10 @@ const navItems = [
 
 function UserProfile({ onClose }: { onClose: () => void }) {
   const [location] = useLocation();
-  const { user } = useUser();
-  const { signOut } = useClerk();
+  const { user, signOut } = useAuth();
 
-  const displayName = user?.firstName
-    || user?.username
-    || user?.emailAddresses?.[0]?.emailAddress?.split("@")[0]
-    || "User";
-  const email = user?.emailAddresses?.[0]?.emailAddress;
+  const displayName = user?.displayName || user?.username || "User";
+  const email = user?.email;
   const initials = displayName[0]?.toUpperCase() ?? "U";
 
   return (
@@ -50,11 +46,7 @@ function UserProfile({ onClose }: { onClose: () => void }) {
 
       <div className="flex items-center gap-2.5 px-3 py-2">
         <div className="w-7 h-7 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center shrink-0 overflow-hidden">
-          {user?.imageUrl ? (
-            <img src={user.imageUrl} alt="" className="w-full h-full object-cover" />
-          ) : (
-            <span className="text-xs font-semibold text-primary">{initials}</span>
-          )}
+          <span className="text-xs font-semibold text-primary">{initials}</span>
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-xs font-medium text-sidebar-foreground truncate">{displayName}</p>

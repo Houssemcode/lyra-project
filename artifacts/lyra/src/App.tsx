@@ -1,12 +1,14 @@
-import { useEffect, useRef, useState } from "react";
-import { ClerkProvider, SignIn, SignUp, Show, useClerk, useUser } from "@clerk/react";
-import { publishableKeyFromHost } from "@clerk/react/internal";
-import { shadcn } from "@clerk/themes";
+import { useEffect, useState, useCallback } from "react";
 import { Switch, Route, Router as WouterRouter, useLocation, Redirect } from "wouter";
-import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { createContext, useContext } from "react";
+import { setAuthTokenGetter, setBaseUrl } from "@workspace/api-client-react";
+
+if (import.meta.env.VITE_API_URL) {
+  setBaseUrl(import.meta.env.VITE_API_URL);
+}
 import AppLayout from "@/components/layout/app-layout";
 import { NotificationScheduler } from "@/components/notification-scheduler";
 import { OnboardingWizard } from "@/components/onboarding-wizard";
@@ -22,6 +24,8 @@ import Settings from "@/pages/settings";
 import Progress from "@/pages/progress";
 import Reports from "@/pages/reports";
 import NotFound from "@/pages/not-found";
+import SignInPage from "@/pages/auth/sign-in";
+import SignUpPage from "@/pages/auth/sign-up";
 
 const queryClient = new QueryClient();
 
@@ -47,104 +51,132 @@ function ThemeProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-// ─── Clerk setup ──────────────────────────────────────────────────────────────
-const clerkPubKey = publishableKeyFromHost(
-  window.location.hostname,
-  import.meta.env.VITE_CLERK_PUBLISHABLE_KEY,
-);
-const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
+// ─── Auth context ─────────────────────────────────────────────────────────────
+export interface AuthUser {
+  id: string;
+  email: string;
+  username: string;
+  displayName: string;
+  createdAt: string | null;
+}
+
+interface AuthContextValue {
+  user: AuthUser | null;
+  token: string | null;
+  isLoading: boolean;
+  login: (email: string, password: string) => Promise<void>;
+  register: (email: string, username: string, password: string, displayName?: string) => Promise<void>;
+  signOut: () => void;
+}
+
+const AuthContext = createContext<AuthContextValue>({
+  user: null,
+  token: null,
+  isLoading: true,
+  login: async () => {},
+  register: async () => {},
+  signOut: () => {},
+});
+
+export function useAuth() { return useContext(AuthContext); }
+
+const TOKEN_KEY = "lyra_auth_token";
+
+function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Wire token into the API client
+  useEffect(() => {
+    setAuthTokenGetter(() => token);
+  }, [token]);
+
+  // Validate stored token on mount
+  useEffect(() => {
+    if (!token) {
+      setIsLoading(false);
+      return;
+    }
+
+    fetch("/api/auth/me", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error("Invalid token");
+        return res.json();
+      })
+      .then((data: AuthUser) => {
+        setUser(data);
+      })
+      .catch(() => {
+        localStorage.removeItem(TOKEN_KEY);
+        setToken(null);
+        setUser(null);
+      })
+      .finally(() => setIsLoading(false));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const login = useCallback(async (email: string, password: string) => {
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Login failed" }));
+      throw new Error(err.detail || "Login failed");
+    }
+    const data = await res.json();
+    localStorage.setItem(TOKEN_KEY, data.token);
+    setToken(data.token);
+    setUser(data.user);
+    queryClient.clear();
+  }, []);
+
+  const register = useCallback(async (email: string, username: string, password: string, displayName?: string) => {
+    const res = await fetch("/api/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, username, password, display_name: displayName || username }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Registration failed" }));
+      throw new Error(err.detail || "Registration failed");
+    }
+    const data = await res.json();
+    localStorage.setItem(TOKEN_KEY, data.token);
+    setToken(data.token);
+    setUser(data.user);
+    queryClient.clear();
+  }, []);
+
+  const signOut = useCallback(() => {
+    localStorage.removeItem(TOKEN_KEY);
+    setToken(null);
+    setUser(null);
+    queryClient.clear();
+  }, []);
+
+  return (
+    <AuthContext.Provider value={{ user, token, isLoading, login, register, signOut }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
-function stripBase(path: string): string {
-  return basePath && path.startsWith(basePath) ? path.slice(basePath.length) || "/" : path;
-}
-
-if (!clerkPubKey) {
-  throw new Error("Missing VITE_CLERK_PUBLISHABLE_KEY");
-}
-
-const clerkAppearance = {
-  theme: shadcn,
-  cssLayerName: "clerk",
-  options: {
-    logoPlacement: "inside" as const,
-    logoLinkUrl: basePath || "/",
-    logoImageUrl: `${window.location.origin}${basePath}/logo.svg`,
-  },
-  variables: {
-    colorPrimary: "hsl(186, 60%, 45%)",
-    colorForeground: "hsl(210, 40%, 98%)",
-    colorMutedForeground: "hsl(215, 20%, 50%)",
-    colorDanger: "hsl(0, 72%, 51%)",
-    colorBackground: "hsl(226, 30%, 8%)",
-    colorInput: "hsl(226, 30%, 13%)",
-    colorInputForeground: "hsl(210, 40%, 98%)",
-    colorNeutral: "hsl(215, 20%, 25%)",
-    fontFamily: "'Plus Jakarta Sans', sans-serif",
-    borderRadius: "0.75rem",
-  },
-  elements: {
-    rootBox: "w-full flex justify-center",
-    cardBox: "bg-[hsl(226,30%,7%)] border border-[hsl(215,20%,15%)] rounded-2xl w-[440px] max-w-full overflow-hidden shadow-2xl",
-    card: "!shadow-none !border-0 !bg-transparent !rounded-none",
-    footer: "!shadow-none !border-0 !bg-transparent !rounded-none",
-    headerTitle: "text-white font-semibold",
-    headerSubtitle: "text-[hsl(215,20%,55%)]",
-    socialButtonsBlockButtonText: "text-white",
-    formFieldLabel: "text-[hsl(210,40%,90%)] text-sm",
-    footerActionLink: "text-[hsl(186,60%,45%)] hover:text-[hsl(186,60%,55%)]",
-    footerActionText: "text-[hsl(215,20%,50%)]",
-    dividerText: "text-[hsl(215,20%,50%)]",
-    identityPreviewEditButton: "text-[hsl(186,60%,45%)]",
-    formFieldSuccessText: "text-emerald-400",
-    alertText: "text-white",
-    logoBox: "mb-1",
-    logoImage: "h-9 w-auto",
-    socialButtonsBlockButton: "border-[hsl(215,20%,20%)] bg-[hsl(226,30%,12%)] hover:bg-[hsl(226,30%,16%)] text-white",
-    formButtonPrimary: "bg-[hsl(186,60%,45%)] hover:bg-[hsl(186,60%,40%)] text-[hsl(226,30%,6%)] font-semibold",
-    formFieldInput: "bg-[hsl(226,30%,12%)] border-[hsl(215,20%,20%)] text-white focus:border-[hsl(186,60%,45%)]",
-    footerAction: "border-t border-[hsl(215,20%,13%)] mt-1",
-    dividerLine: "bg-[hsl(215,20%,18%)]",
-    alert: "border-[hsl(215,20%,20%)] bg-[hsl(226,30%,10%)]",
-    otpCodeFieldInput: "bg-[hsl(226,30%,12%)] border-[hsl(215,20%,20%)] text-white",
-  },
-};
-
-// ─── Auth pages ───────────────────────────────────────────────────────────────
-function SignInPage() {
-  return (
-    <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-background px-4 py-8">
-      <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} />
-    </div>
-  );
-}
-
-function SignUpPage() {
-  return (
-    <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-background px-4 py-8">
-      <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} />
-    </div>
-  );
-}
-
-// ─── Landing page (signed-out on /) ──────────────────────────────────────────
+// ─── Landing page ────────────────────────────────────────────────────────────
 function LandingPage() {
   const [, setLocation] = useLocation();
   return (
     <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-background px-6 text-center">
       <div className="w-14 h-14 rounded-2xl bg-primary flex items-center justify-center mb-6 shadow-lg shadow-primary/20">
-        <span
-          className="text-primary-foreground font-bold text-2xl"
-          style={{ fontFamily: "var(--app-font-display)" }}
-        >
-          L
-        </span>
+        <span className="text-primary-foreground font-bold text-2xl" style={{ fontFamily: "var(--app-font-display)" }}>L</span>
       </div>
       <p className="text-xs tracking-[0.2em] uppercase text-primary mb-3 font-medium">Personal Productivity</p>
-      <h1
-        className="text-4xl font-bold mb-3 text-foreground"
-        style={{ fontFamily: "var(--app-font-display)" }}
-      >
+      <h1 className="text-4xl font-bold mb-3 text-foreground" style={{ fontFamily: "var(--app-font-display)" }}>
         Welcome to Lyra
       </h1>
       <p className="text-muted-foreground max-w-sm mb-8 leading-relaxed">
@@ -181,16 +213,23 @@ function LandingPage() {
   );
 }
 
-// ─── Redirect signed-out on protected routes ──────────────────────────────────
-function LandingOrRedirect() {
-  const [location] = useLocation();
-  if (location === "/") return <LandingPage />;
-  return <Redirect to="/sign-in" />;
+// ─── Auth loading screen ──────────────────────────────────────────────────────
+function AuthLoading() {
+  return (
+    <div className="flex min-h-[100dvh] items-center justify-center bg-background">
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center animate-pulse">
+          <span className="text-primary-foreground font-bold text-lg" style={{ fontFamily: "var(--app-font-display)" }}>L</span>
+        </div>
+        <p className="text-sm text-muted-foreground">Loading...</p>
+      </div>
+    </div>
+  );
 }
 
 // ─── Authenticated app shell ──────────────────────────────────────────────────
 function AuthenticatedApp() {
-  const { user } = useUser();
+  const { user } = useAuth();
   const onboardingKey = `lyra_onboarding_done_${user?.id ?? ""}`;
   const [onboardingDone, setOnboardingDone] = useState(() => !!localStorage.getItem(onboardingKey));
 
@@ -227,70 +266,28 @@ function AuthenticatedApp() {
 
 // ─── App shell: auth-gated ────────────────────────────────────────────────────
 function AppShell() {
-  return (
-    <>
-      <Show when="signed-in">
-        <AuthenticatedApp />
-      </Show>
-      <Show when="signed-out">
-        <LandingOrRedirect />
-      </Show>
-    </>
-  );
-}
+  const { user, isLoading } = useAuth();
+  const [location] = useLocation();
 
-// ─── Query cache invalidator on user switch ───────────────────────────────────
-function ClerkQueryCacheInvalidator() {
-  const { addListener } = useClerk();
-  const qc = useQueryClient();
-  const prevRef = useRef<string | null | undefined>(undefined);
-  useEffect(() => {
-    return addListener(({ user }) => {
-      const uid = user?.id ?? null;
-      if (prevRef.current !== undefined && prevRef.current !== uid) {
-        qc.clear();
-      }
-      prevRef.current = uid;
-    });
-  }, [addListener, qc]);
-  return null;
-}
+  if (isLoading) return <AuthLoading />;
 
-// ─── ClerkProvider + wouter routing ──────────────────────────────────────────
-function ClerkProviderWithRoutes() {
-  const [, setLocation] = useLocation();
+  // Signed-in users go to the app
+  if (user) {
+    // Redirect away from auth pages
+    if (location === "/sign-in" || location === "/sign-up") {
+      return <Redirect to="/" />;
+    }
+    return <AuthenticatedApp />;
+  }
+
+  // Not signed in
   return (
-    <ClerkProvider
-      publishableKey={clerkPubKey}
-      proxyUrl={clerkProxyUrl}
-      appearance={clerkAppearance}
-      signInUrl={`${basePath}/sign-in`}
-      signUpUrl={`${basePath}/sign-up`}
-      localization={{
-        signIn: {
-          start: { title: "Welcome back", subtitle: "Sign in to your Lyra account" },
-        },
-        signUp: {
-          start: { title: "Create your account", subtitle: "Your personal productivity companion" },
-        },
-      }}
-      routerPush={(to) => setLocation(stripBase(to))}
-      routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
-    >
-      <QueryClientProvider client={queryClient}>
-        <ClerkQueryCacheInvalidator />
-        <ThemeProvider>
-          <TooltipProvider>
-            <Switch>
-              <Route path="/sign-in/*?" component={SignInPage} />
-              <Route path="/sign-up/*?" component={SignUpPage} />
-              <Route component={AppShell} />
-            </Switch>
-            <Toaster />
-          </TooltipProvider>
-        </ThemeProvider>
-      </QueryClientProvider>
-    </ClerkProvider>
+    <Switch>
+      <Route path="/sign-in" component={SignInPage} />
+      <Route path="/sign-up" component={SignUpPage} />
+      <Route path="/" component={LandingPage} />
+      <Route>{() => <Redirect to="/sign-in" />}</Route>
+    </Switch>
   );
 }
 
@@ -298,7 +295,16 @@ function ClerkProviderWithRoutes() {
 function App() {
   return (
     <WouterRouter base={basePath}>
-      <ClerkProviderWithRoutes />
+      <AuthProvider>
+        <QueryClientProvider client={queryClient}>
+          <ThemeProvider>
+            <TooltipProvider>
+              <AppShell />
+              <Toaster />
+            </TooltipProvider>
+          </ThemeProvider>
+        </QueryClientProvider>
+      </AuthProvider>
     </WouterRouter>
   );
 }

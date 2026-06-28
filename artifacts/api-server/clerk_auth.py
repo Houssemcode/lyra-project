@@ -1,56 +1,56 @@
 from __future__ import annotations
 
 import os
-import time
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-import httpx
-from fastapi import Cookie, HTTPException
+import bcrypt
+from fastapi import Header, HTTPException
 from jose import JWTError, jwt
 
-CLERK_SECRET_KEY = os.getenv("CLERK_SECRET_KEY", "")
-
-_jwks_cache: Optional[dict] = None
-_jwks_fetched_at: float = 0.0
-_JWKS_TTL = 3600.0  # 1 hour
+JWT_SECRET = os.getenv("JWT_SECRET", "lyra-dev-secret-change-me-in-production")
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRE_DAYS = 30
 
 
-def _get_jwks() -> dict:
-    global _jwks_cache, _jwks_fetched_at
-    now = time.time()
-    if _jwks_cache and (now - _jwks_fetched_at) < _JWKS_TTL:
-        return _jwks_cache
-    response = httpx.get(
-        "https://api.clerk.com/v1/jwks",
-        headers={"Authorization": f"Bearer {CLERK_SECRET_KEY}"},
-        timeout=10,
-    )
-    response.raise_for_status()
-    _jwks_cache = response.json()
-    _jwks_fetched_at = now
-    return _jwks_cache
+# ── Password helpers ──────────────────────────────────────────────────────────
 
+def hash_password(plain: str) -> str:
+    return bcrypt.hashpw(plain.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+
+def verify_password(plain: str, hashed: str) -> bool:
+    return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+
+
+# ── JWT helpers ───────────────────────────────────────────────────────────────
+
+def create_access_token(user_id: str) -> str:
+    expire = datetime.now(timezone.utc) + timedelta(days=JWT_EXPIRE_DAYS)
+    payload = {"sub": user_id, "exp": expire}
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+
+def decode_access_token(token: str) -> Optional[str]:
+    """Returns user_id or None if invalid/expired."""
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        return payload.get("sub")
+    except JWTError:
+        return None
+
+
+# ── FastAPI dependency ────────────────────────────────────────────────────────
 
 def get_current_user_id(
-    __session: Optional[str] = Cookie(default=None),
+    authorization: Optional[str] = Header(default=None),
 ) -> str:
-    if not __session:
+    if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Not authenticated")
-    try:
-        jwks = _get_jwks()
-        payload = jwt.decode(
-            __session,
-            jwks,
-            algorithms=["RS256"],
-            options={"verify_aud": False},
-        )
-        user_id: Optional[str] = payload.get("sub")
-        if not user_id:
-            raise HTTPException(status_code=401, detail="Invalid token: missing sub")
-        return user_id
-    except JWTError as exc:
-        raise HTTPException(status_code=401, detail=f"Invalid session: {exc}") from exc
-    except HTTPException:
-        raise
-    except Exception as exc:
-        raise HTTPException(status_code=401, detail=f"Auth error: {exc}") from exc
+
+    token = authorization[7:]  # strip "Bearer "
+    user_id = decode_access_token(token)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    return user_id

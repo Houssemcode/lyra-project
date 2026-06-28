@@ -10,7 +10,7 @@ import httpx
 
 from database import create_db_and_tables, engine
 from seed import seed_islamic_activities, seed_routines
-from routes import tasks, habits, events, prayers, focus, islamic, settings, gamification, reports, daily_summary, export
+from routes import auth, tasks, habits, events, prayers, focus, islamic, settings, gamification, reports, daily_summary, export
 
 BASE_PATH = os.getenv("BASE_PATH", "/api")
 
@@ -59,6 +59,7 @@ def healthz():
     return JSONResponse(content={"status": "ok"})
 
 
+app.include_router(auth.router)
 app.include_router(tasks.router)
 app.include_router(habits.router)
 app.include_router(events.router)

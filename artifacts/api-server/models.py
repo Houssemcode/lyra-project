@@ -10,6 +10,16 @@ def gen_uuid() -> str:
     return str(uuid4())
 
 
+class User(SQLModel, table=True):
+    __tablename__ = "users"
+    id: str = Field(primary_key=True, default_factory=gen_uuid)
+    email: str = Field(index=True, unique=True)
+    username: str = Field(index=True, unique=True)
+    display_name: Optional[str] = None
+    password_hash: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
 class Folder(SQLModel, table=True):
     __tablename__ = "Folder"
     id: str = Field(primary_key=True, default_factory=gen_uuid)
