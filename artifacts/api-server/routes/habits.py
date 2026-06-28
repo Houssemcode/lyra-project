@@ -9,17 +9,15 @@ from sqlmodel import Session, select, and_
 from database import get_session
 from models import Habit, HabitLog, Routine, Folder
 from utils import today_str
+from clerk_auth import get_current_user_id
 
 router = APIRouter()
 
 # ─── HabitLog status mapping ──────────────────────────────────────────────────
-# Frontend: completed / skipped / missed
-# Stored:   Completed / Skipped / Failed
 _LOG_TO   = {"completed": "Completed", "skipped": "Skipped", "missed": "Failed"}
 _LOG_FROM = {"Completed": "completed", "Skipped": "skipped", "Failed": "missed"}
 
 # ─── Habit type mapping ───────────────────────────────────────────────────────
-# Frontend may send: positive / negative (legacy) OR Binary / Numeric / Timer
 _TYPE_TO: dict = {"positive": "Binary", "negative": "Binary"}
 
 
@@ -134,10 +132,16 @@ class LogHabitBody(BaseModel):
 
 # ─── Routes ──────────────────────────────────────────────────────────────────
 @router.get("/habits/today")
-def get_today_habits(session: Session = Depends(get_session)):
+def get_today_habits(
+    user_id: str = Depends(get_current_user_id),
+    session: Session = Depends(get_session),
+):
     today = today_str()
-    habits = session.exec(select(Habit).where(Habit.is_archived == False)).all()
-    logs = session.exec(select(HabitLog).where(HabitLog.date == today)).all()
+    habits = session.exec(select(Habit).where(Habit.user_id == user_id, Habit.is_archived == False)).all()
+    habit_ids = [h.id for h in habits]
+    logs = session.exec(
+        select(HabitLog).where(HabitLog.habit_id.in_(habit_ids), HabitLog.date == today)
+    ).all() if habit_ids else []
     log_map = {lg.habit_id: _LOG_FROM.get(lg.status, lg.status.lower()) for lg in logs}
     result = []
     for h in habits:
@@ -148,19 +152,27 @@ def get_today_habits(session: Session = Depends(get_session)):
 
 
 @router.get("/habits")
-def list_habits(session: Session = Depends(get_session)):
-    habits = session.exec(select(Habit)).all()
+def list_habits(
+    user_id: str = Depends(get_current_user_id),
+    session: Session = Depends(get_session),
+):
+    habits = session.exec(select(Habit).where(Habit.user_id == user_id)).all()
     return JSONResponse(content=[serialize_habit(h, session) for h in habits])
 
 
 @router.post("/habits", status_code=201)
-def create_habit(body: CreateHabitBody, session: Session = Depends(get_session)):
+def create_habit(
+    body: CreateHabitBody,
+    user_id: str = Depends(get_current_user_id),
+    session: Session = Depends(get_session),
+):
     time_of_day = body.timeOfDay or "anytime"
     routine = _get_routine_by_name(session, time_of_day)
     folder = _get_or_create_folder(session, body.category)
     habit_type = _TYPE_TO.get(body.type or "Binary", body.type or "Binary")
 
     habit = Habit(
+        user_id=user_id,
         name=body.name,
         routine_id=routine.id if routine else None,
         folder_id=folder.id if folder else None,
@@ -173,9 +185,14 @@ def create_habit(body: CreateHabitBody, session: Session = Depends(get_session))
 
 
 @router.patch("/habits/{habit_id}")
-def update_habit(habit_id: str, body: UpdateHabitBody, session: Session = Depends(get_session)):
+def update_habit(
+    habit_id: str,
+    body: UpdateHabitBody,
+    user_id: str = Depends(get_current_user_id),
+    session: Session = Depends(get_session),
+):
     habit = session.get(Habit, habit_id)
-    if not habit:
+    if not habit or habit.user_id != user_id:
         raise HTTPException(status_code=404, detail="Habit not found")
 
     if body.name is not None:
@@ -198,16 +215,29 @@ def update_habit(habit_id: str, body: UpdateHabitBody, session: Session = Depend
 
 
 @router.delete("/habits/{habit_id}", status_code=204)
-def delete_habit(habit_id: str, session: Session = Depends(get_session)):
+def delete_habit(
+    habit_id: str,
+    user_id: str = Depends(get_current_user_id),
+    session: Session = Depends(get_session),
+):
     habit = session.get(Habit, habit_id)
-    if not habit:
+    if not habit or habit.user_id != user_id:
         raise HTTPException(status_code=404, detail="Habit not found")
     session.delete(habit)
     session.commit()
 
 
 @router.post("/habits/{habit_id}/log")
-def log_habit(habit_id: str, body: LogHabitBody, session: Session = Depends(get_session)):
+def log_habit(
+    habit_id: str,
+    body: LogHabitBody,
+    user_id: str = Depends(get_current_user_id),
+    session: Session = Depends(get_session),
+):
+    habit = session.get(Habit, habit_id)
+    if not habit or habit.user_id != user_id:
+        raise HTTPException(status_code=404, detail="Habit not found")
+
     log_date = body.date or today_str()
     stored_status = _LOG_TO.get(body.status, body.status)
 
@@ -226,7 +256,6 @@ def log_habit(habit_id: str, body: LogHabitBody, session: Session = Depends(get_
     session.refresh(lg)
 
     streak, best = _recalc_streaks(session, habit_id, today_str())
-    habit = session.get(Habit, habit_id)
     if habit:
         habit.current_streak = streak
         habit.longest_streak = max(habit.longest_streak, best)

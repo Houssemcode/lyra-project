@@ -9,6 +9,7 @@ from sqlmodel import Session, select
 from database import get_session
 from models import UserSettings
 from utils import camelify
+from clerk_auth import get_current_user_id
 
 router = APIRouter()
 
@@ -18,10 +19,10 @@ def serialize_settings(s: UserSettings) -> dict:
     return camelify({k: str(v) if hasattr(v, "hex") else v for k, v in d.items()})
 
 
-def get_or_create_settings(session: Session) -> UserSettings:
-    settings = session.exec(select(UserSettings)).first()
+def get_or_create_settings(session: Session, user_id: str) -> UserSettings:
+    settings = session.exec(select(UserSettings).where(UserSettings.user_id == user_id)).first()
     if not settings:
-        settings = UserSettings()
+        settings = UserSettings(user_id=user_id)
         session.add(settings)
         session.commit()
         session.refresh(settings)
@@ -29,8 +30,11 @@ def get_or_create_settings(session: Session) -> UserSettings:
 
 
 @router.get("/settings")
-def get_settings(session: Session = Depends(get_session)):
-    settings = get_or_create_settings(session)
+def get_settings(
+    user_id: str = Depends(get_current_user_id),
+    session: Session = Depends(get_session),
+):
+    settings = get_or_create_settings(session, user_id)
     return JSONResponse(content=serialize_settings(settings))
 
 
@@ -42,8 +46,12 @@ class UpdateSettingsBody(BaseModel):
 
 
 @router.patch("/settings")
-def update_settings(body: UpdateSettingsBody, session: Session = Depends(get_session)):
-    settings = get_or_create_settings(session)
+def update_settings(
+    body: UpdateSettingsBody,
+    user_id: str = Depends(get_current_user_id),
+    session: Session = Depends(get_session),
+):
+    settings = get_or_create_settings(session, user_id)
 
     if body.displayName is not None:
         settings.display_name = body.displayName

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
+from sqlalchemy import text
 from sqlmodel import Session
+import httpx
 
 from database import create_db_and_tables, engine
 from seed import seed_islamic_activities, seed_routines
@@ -23,9 +25,30 @@ app.add_middleware(
 )
 
 
+def _migrate_add_user_id() -> None:
+    statements = [
+        'ALTER TABLE "Task" ADD COLUMN IF NOT EXISTS user_id VARCHAR',
+        'ALTER TABLE "Habit" ADD COLUMN IF NOT EXISTS user_id VARCHAR',
+        'ALTER TABLE "FocusSession" ADD COLUMN IF NOT EXISTS user_id VARCHAR',
+        'ALTER TABLE "CalendarEvent" ADD COLUMN IF NOT EXISTS user_id VARCHAR',
+        'ALTER TABLE "PrayerLog" ADD COLUMN IF NOT EXISTS user_id VARCHAR',
+        'ALTER TABLE "ActivityLog" ADD COLUMN IF NOT EXISTS user_id VARCHAR',
+        'ALTER TABLE "Khatmah" ADD COLUMN IF NOT EXISTS user_id VARCHAR',
+        'ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS user_id VARCHAR',
+    ]
+    with engine.connect() as conn:
+        for stmt in statements:
+            try:
+                conn.execute(text(stmt))
+            except Exception:
+                pass
+        conn.commit()
+
+
 @app.on_event("startup")
 def on_startup():
     create_db_and_tables()
+    _migrate_add_user_id()
     with Session(engine) as session:
         seed_routines(session)
         seed_islamic_activities(session)

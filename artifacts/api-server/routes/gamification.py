@@ -7,6 +7,7 @@ from sqlmodel import Session, select, and_, func
 from database import get_session
 from models import Task, Habit, HabitLog, PrayerLog, FocusSession, ActivityLog
 from utils import today_str
+from clerk_auth import get_current_user_id
 
 router = APIRouter()
 
@@ -24,20 +25,23 @@ def level_from_xp(xp: int) -> int:
 
 
 @router.get("/gamification")
-def get_gamification(session: Session = Depends(get_session)):
+def get_gamification(
+    user_id: str = Depends(get_current_user_id),
+    session: Session = Depends(get_session),
+):
     now = datetime.utcnow()
     today = today_str()
     week_ago = (now - timedelta(days=6)).strftime("%Y-%m-%d")
     today_start = datetime.fromisoformat(today + "T00:00:00")
     week_start = datetime.fromisoformat(week_ago + "T00:00:00")
 
-    task_all = session.exec(select(func.count(Task.id)).where(Task.status == "Done")).one()
+    task_all = session.exec(select(func.count(Task.id)).where(Task.user_id == user_id, Task.status == "Done")).one()
     habit_all = session.exec(select(func.count(HabitLog.id)).where(HabitLog.status == "Completed")).one()
-    prayer_ontime_all = session.exec(select(func.count(PrayerLog.id)).where(PrayerLog.status == "On_Time")).one()
-    prayer_late_all = session.exec(select(func.count(PrayerLog.id)).where(PrayerLog.status == "Late")).one()
-    deed_all = session.exec(select(func.count(ActivityLog.id)).where(ActivityLog.status == "Completed")).one()
+    prayer_ontime_all = session.exec(select(func.count(PrayerLog.id)).where(PrayerLog.user_id == user_id, PrayerLog.status == "On_Time")).one()
+    prayer_late_all = session.exec(select(func.count(PrayerLog.id)).where(PrayerLog.user_id == user_id, PrayerLog.status == "Late")).one()
+    deed_all = session.exec(select(func.count(ActivityLog.id)).where(ActivityLog.user_id == user_id, ActivityLog.status == "Completed")).one()
 
-    focus_sessions_all = session.exec(select(FocusSession)).all()
+    focus_sessions_all = session.exec(select(FocusSession).where(FocusSession.user_id == user_id)).all()
     focus_mins_all = sum(min(s.actual_duration or 0, 90) for s in focus_sessions_all)
 
     total_xp = (

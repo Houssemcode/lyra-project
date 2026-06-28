@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from sqlmodel import Session, select, and_
 from database import get_session
 from models import CalendarEvent
+from clerk_auth import get_current_user_id
 
 router = APIRouter()
 
@@ -61,9 +62,10 @@ class UpdateEventBody(BaseModel):
 def list_events(
     start: Optional[str] = None,
     end: Optional[str] = None,
+    user_id: str = Depends(get_current_user_id),
     session: Session = Depends(get_session),
 ):
-    conditions = [CalendarEvent.is_archived == False]
+    conditions = [CalendarEvent.user_id == user_id, CalendarEvent.is_archived == False]
     if start:
         conditions.append(CalendarEvent.start_time >= _parse_dt(start))
     if end:
@@ -75,8 +77,13 @@ def list_events(
 
 
 @router.post("/events", status_code=201)
-def create_event(body: CreateEventBody, session: Session = Depends(get_session)):
+def create_event(
+    body: CreateEventBody,
+    user_id: str = Depends(get_current_user_id),
+    session: Session = Depends(get_session),
+):
     event = CalendarEvent(
+        user_id=user_id,
         title=body.title,
         description=body.description,
         location=body.location,
@@ -92,9 +99,14 @@ def create_event(body: CreateEventBody, session: Session = Depends(get_session))
 
 
 @router.patch("/events/{event_id}")
-def update_event(event_id: str, body: UpdateEventBody, session: Session = Depends(get_session)):
+def update_event(
+    event_id: str,
+    body: UpdateEventBody,
+    user_id: str = Depends(get_current_user_id),
+    session: Session = Depends(get_session),
+):
     event = session.get(CalendarEvent, event_id)
-    if not event:
+    if not event or event.user_id != user_id:
         raise HTTPException(status_code=404, detail="Event not found")
 
     if body.title is not None:
@@ -117,9 +129,13 @@ def update_event(event_id: str, body: UpdateEventBody, session: Session = Depend
 
 
 @router.delete("/events/{event_id}", status_code=204)
-def delete_event(event_id: str, session: Session = Depends(get_session)):
+def delete_event(
+    event_id: str,
+    user_id: str = Depends(get_current_user_id),
+    session: Session = Depends(get_session),
+):
     event = session.get(CalendarEvent, event_id)
-    if not event:
+    if not event or event.user_id != user_id:
         raise HTTPException(status_code=404, detail="Event not found")
     session.delete(event)
     session.commit()

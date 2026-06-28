@@ -9,6 +9,7 @@ from sqlmodel import Session, select, and_
 from database import get_session
 from models import Task, TaskList, Tag, TaskTag
 from utils import today_str
+from clerk_auth import get_current_user_id
 
 router = APIRouter()
 
@@ -124,10 +125,10 @@ def _should_gen(recurrence: str, template_start: Optional[datetime], target_date
     return False
 
 
-def _ensure_recurring(session: Session, target_date: str):
+def _ensure_recurring(session: Session, user_id: str, target_date: str):
     templates = session.exec(
         select(Task).where(
-            and_(Task.recurrence_rule != None, Task.parent_task_id == None)
+            and_(Task.user_id == user_id, Task.recurrence_rule != None, Task.parent_task_id == None)
         )
     ).all()
     for tmpl in templates:
@@ -147,6 +148,7 @@ def _ensure_recurring(session: Session, target_date: str):
         if existing:
             continue
         instance = Task(
+            user_id=user_id,
             title=tmpl.title,
             description=tmpl.description,
             priority=tmpl.priority,
@@ -185,13 +187,16 @@ class UpdateTaskBody(BaseModel):
 
 # ─── Routes ──────────────────────────────────────────────────────────────────
 @router.get("/tasks/today")
-def get_today_tasks(session: Session = Depends(get_session)):
+def get_today_tasks(
+    user_id: str = Depends(get_current_user_id),
+    session: Session = Depends(get_session),
+):
     today = today_str()
-    _ensure_recurring(session, today)
+    _ensure_recurring(session, user_id, today)
     start = datetime.fromisoformat(today + "T00:00:00")
     end = datetime.fromisoformat(today + "T23:59:59")
     tasks = session.exec(
-        select(Task).where(and_(Task.start_time >= start, Task.start_time <= end, Task.is_archived == False))
+        select(Task).where(and_(Task.user_id == user_id, Task.start_time >= start, Task.start_time <= end, Task.is_archived == False))
     ).all()
     done = sum(1 for t in tasks if t.status == "Done")
     pending = sum(1 for t in tasks if t.status == "Pending")
@@ -206,9 +211,12 @@ def get_today_tasks(session: Session = Depends(get_session)):
 
 
 @router.get("/tasks/recurring")
-def list_recurring_tasks(session: Session = Depends(get_session)):
+def list_recurring_tasks(
+    user_id: str = Depends(get_current_user_id),
+    session: Session = Depends(get_session),
+):
     tasks = session.exec(
-        select(Task).where(and_(Task.recurrence_rule != None, Task.parent_task_id == None))
+        select(Task).where(and_(Task.user_id == user_id, Task.recurrence_rule != None, Task.parent_task_id == None))
     ).all()
     return JSONResponse(content=[serialize_task(t, session) for t in tasks])
 
@@ -218,12 +226,13 @@ def list_tasks(
     date: Optional[str] = None,
     status: Optional[str] = None,
     priority: Optional[str] = None,
+    user_id: str = Depends(get_current_user_id),
     session: Session = Depends(get_session),
 ):
     if date:
-        _ensure_recurring(session, date)
+        _ensure_recurring(session, user_id, date)
 
-    conditions = [Task.is_archived == False]
+    conditions = [Task.user_id == user_id, Task.is_archived == False]
     if date:
         start = datetime.fromisoformat(date + "T00:00:00")
         end = datetime.fromisoformat(date + "T23:59:59")
@@ -242,7 +251,11 @@ def list_tasks(
 
 
 @router.post("/tasks", status_code=201)
-def create_task(body: CreateTaskBody, session: Session = Depends(get_session)):
+def create_task(
+    body: CreateTaskBody,
+    user_id: str = Depends(get_current_user_id),
+    session: Session = Depends(get_session),
+):
     task_list = _get_or_create_list(session, body.list)
     recurrence = body.recurrence if body.recurrence in _REC_VALID else None
 
@@ -252,6 +265,7 @@ def create_task(body: CreateTaskBody, session: Session = Depends(get_session)):
         start_time = datetime.fromisoformat(f"{body.dueDate}T{time_part}:00" if len(time_part) == 5 else f"{body.dueDate}T{time_part}")
 
     task = Task(
+        user_id=user_id,
         title=body.title,
         description=body.description,
         priority=_PRI_TO.get(body.priority or "none", "None"),
@@ -267,17 +281,26 @@ def create_task(body: CreateTaskBody, session: Session = Depends(get_session)):
 
 
 @router.get("/tasks/{task_id}")
-def get_task(task_id: str, session: Session = Depends(get_session)):
+def get_task(
+    task_id: str,
+    user_id: str = Depends(get_current_user_id),
+    session: Session = Depends(get_session),
+):
     task = session.get(Task, task_id)
-    if not task:
+    if not task or task.user_id != user_id:
         raise HTTPException(status_code=404, detail="Task not found")
     return JSONResponse(content=serialize_task(task, session))
 
 
 @router.patch("/tasks/{task_id}")
-def update_task(task_id: str, body: UpdateTaskBody, session: Session = Depends(get_session)):
+def update_task(
+    task_id: str,
+    body: UpdateTaskBody,
+    user_id: str = Depends(get_current_user_id),
+    session: Session = Depends(get_session),
+):
     task = session.get(Task, task_id)
-    if not task:
+    if not task or task.user_id != user_id:
         raise HTTPException(status_code=404, detail="Task not found")
 
     if body.title is not None:
@@ -314,9 +337,13 @@ def update_task(task_id: str, body: UpdateTaskBody, session: Session = Depends(g
 
 
 @router.delete("/tasks/{task_id}", status_code=204)
-def delete_task(task_id: str, session: Session = Depends(get_session)):
+def delete_task(
+    task_id: str,
+    user_id: str = Depends(get_current_user_id),
+    session: Session = Depends(get_session),
+):
     task = session.get(Task, task_id)
-    if not task:
+    if not task or task.user_id != user_id:
         raise HTTPException(status_code=404, detail="Task not found")
     for tt in session.exec(select(TaskTag).where(TaskTag.task_id == task_id)).all():
         session.delete(tt)

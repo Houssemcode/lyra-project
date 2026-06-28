@@ -9,10 +9,10 @@ from sqlmodel import Session, select, and_
 from database import get_session
 from models import Khatmah, IslamicActivity, ActivityLog
 from utils import today_str
+from clerk_auth import get_current_user_id
 
 router = APIRouter()
 
-# ─── Type→category bridge so existing frontend icons still work ───────────────
 _TYPE_TO_CATEGORY = {
     "fard":     "prayer",
     "sunnah":   "sunnah",
@@ -109,9 +109,12 @@ class LogDeedBody(BaseModel):
 
 # ─── Khatmah (Quran progress) routes ─────────────────────────────────────────
 @router.get("/quran")
-def get_quran(session: Session = Depends(get_session)):
+def get_quran(
+    user_id: str = Depends(get_current_user_id),
+    session: Session = Depends(get_session),
+):
     k = session.exec(
-        select(Khatmah).where(Khatmah.is_archived == False).order_by(Khatmah.created_at)
+        select(Khatmah).where(Khatmah.user_id == user_id, Khatmah.is_archived == False).order_by(Khatmah.created_at)
     ).first()
     if not k:
         raise HTTPException(status_code=404, detail="No Khatmah found")
@@ -119,9 +122,14 @@ def get_quran(session: Session = Depends(get_session)):
 
 
 @router.post("/quran", status_code=201)
-def init_quran(body: InitQuranBody, session: Session = Depends(get_session)):
+def init_quran(
+    body: InitQuranBody,
+    user_id: str = Depends(get_current_user_id),
+    session: Session = Depends(get_session),
+):
     current_page = body.currentPage or 1
     k = Khatmah(
+        user_id=user_id,
         name=body.name or "My Khatmah",
         target_date=body.targetDate,
         current_page=current_page,
@@ -133,8 +141,14 @@ def init_quran(body: InitQuranBody, session: Session = Depends(get_session)):
 
 
 @router.patch("/quran")
-def update_quran(body: UpdateQuranBody, session: Session = Depends(get_session)):
-    k = session.exec(select(Khatmah).where(Khatmah.is_archived == False)).first()
+def update_quran(
+    body: UpdateQuranBody,
+    user_id: str = Depends(get_current_user_id),
+    session: Session = Depends(get_session),
+):
+    k = session.exec(
+        select(Khatmah).where(Khatmah.user_id == user_id, Khatmah.is_archived == False)
+    ).first()
     if not k:
         raise HTTPException(status_code=404, detail="No Khatmah found. Initialize first.")
 
@@ -154,6 +168,7 @@ def update_quran(body: UpdateQuranBody, session: Session = Depends(get_session))
 def list_deeds(
     todayOnly: Optional[str] = None,
     date: Optional[str] = None,
+    user_id: str = Depends(get_current_user_id),
     session: Session = Depends(get_session),
 ):
     deeds = session.exec(
@@ -170,10 +185,16 @@ def list_deeds(
 
 
 @router.post("/deeds/{deed_id}/log", status_code=201)
-def log_deed(deed_id: str, body: LogDeedBody, session: Session = Depends(get_session)):
+def log_deed(
+    deed_id: str,
+    body: LogDeedBody,
+    user_id: str = Depends(get_current_user_id),
+    session: Session = Depends(get_session),
+):
     stored_status = _LOG_STATUS_TO.get(body.status or "completed", "Completed")
     log_date = body.date or today_str()
     lg = ActivityLog(
+        user_id=user_id,
         activity_id=deed_id,
         status=stored_status,
         hijri_date=body.hijriDate,
@@ -186,13 +207,17 @@ def log_deed(deed_id: str, body: LogDeedBody, session: Session = Depends(get_ses
 
 
 @router.get("/deeds/logs")
-def get_deed_logs(date: Optional[str] = None, session: Session = Depends(get_session)):
+def get_deed_logs(
+    date: Optional[str] = None,
+    user_id: str = Depends(get_current_user_id),
+    session: Session = Depends(get_session),
+):
     target_date = date or today_str()
     start = datetime.fromisoformat(target_date + "T00:00:00")
     end = datetime.fromisoformat(target_date + "T23:59:59")
     logs = session.exec(
         select(ActivityLog).where(
-            and_(ActivityLog.logged_at >= start, ActivityLog.logged_at <= end)
+            and_(ActivityLog.user_id == user_id, ActivityLog.logged_at >= start, ActivityLog.logged_at <= end)
         )
     ).all()
 

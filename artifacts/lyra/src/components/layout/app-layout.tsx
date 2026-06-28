@@ -1,9 +1,10 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, CheckSquare, Flame, CalendarDays, Moon, Timer, BarChart3, Menu, X, Star, Settings, Trophy, FileText, Sun } from "lucide-react";
+import { LayoutDashboard, CheckSquare, Flame, CalendarDays, Moon, Timer, BarChart3, Menu, X, Star, Settings, Trophy, FileText, LogOut } from "lucide-react";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/App";
+import { useClerk, useUser } from "@clerk/react";
 
 const navItems = [
   { href: "/", label: "Today", icon: LayoutDashboard },
@@ -18,10 +19,64 @@ const navItems = [
   { href: "/reports", label: "Reports", icon: FileText },
 ];
 
+function UserProfile({ onClose }: { onClose: () => void }) {
+  const [location] = useLocation();
+  const { user } = useUser();
+  const { signOut } = useClerk();
+
+  const displayName = user?.firstName
+    || user?.username
+    || user?.emailAddresses?.[0]?.emailAddress?.split("@")[0]
+    || "User";
+  const email = user?.emailAddresses?.[0]?.emailAddress;
+  const initials = displayName[0]?.toUpperCase() ?? "U";
+
+  return (
+    <div className="px-3 py-3 border-t border-sidebar-border space-y-1">
+      <Link
+        href="/settings"
+        onClick={onClose}
+        data-testid="nav-settings"
+        className={cn(
+          "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer w-full",
+          location === "/settings"
+            ? "bg-sidebar-primary/15 text-primary"
+            : "text-sidebar-foreground/50 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+        )}
+      >
+        <Settings size={16} className={location === "/settings" ? "text-primary" : "text-sidebar-foreground/40"} />
+        Settings
+      </Link>
+
+      <div className="flex items-center gap-2.5 px-3 py-2">
+        <div className="w-7 h-7 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center shrink-0 overflow-hidden">
+          {user?.imageUrl ? (
+            <img src={user.imageUrl} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <span className="text-xs font-semibold text-primary">{initials}</span>
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-medium text-sidebar-foreground truncate">{displayName}</p>
+          {email && (
+            <p className="text-[10px] text-sidebar-foreground/40 truncate">{email}</p>
+          )}
+        </div>
+        <button
+          onClick={() => signOut()}
+          className="p-1 rounded-md text-sidebar-foreground/40 hover:text-sidebar-foreground/70 hover:bg-sidebar-accent transition-colors shrink-0"
+          title="Sign out"
+        >
+          <LogOut size={13} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { theme, toggleTheme } = useTheme();
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
@@ -64,23 +119,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
-        {/* Footer */}
-        <div className="px-3 py-3 border-t border-sidebar-border">
-          <Link
-            href="/settings"
-            onClick={() => setMobileOpen(false)}
-            data-testid="nav-settings"
-            className={cn(
-              "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer w-full",
-              location === "/settings"
-                ? "bg-sidebar-primary/15 text-primary"
-                : "text-sidebar-foreground/50 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-            )}
-          >
-            <Settings size={16} className={location === "/settings" ? "text-primary" : "text-sidebar-foreground/40"} />
-            Settings
-          </Link>
-        </div>
+        {/* Footer: settings + user profile */}
+        <UserProfile onClose={() => setMobileOpen(false)} />
       </aside>
 
       {/* Mobile overlay */}
@@ -103,14 +143,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             {mobileOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
           <span className="font-semibold flex-1" style={{ fontFamily: "var(--app-font-display)" }}>Lyra</span>
-          {/* Theme toggle — mobile header */}
-          <button
-            onClick={toggleTheme}
-            className="p-1.5 rounded-md hover:bg-accent transition-colors text-muted-foreground"
-            data-testid="button-theme-toggle-mobile"
-          >
-            {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
-          </button>
         </header>
 
         {/* Page content — animated on route change */}

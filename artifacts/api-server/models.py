@@ -41,6 +41,7 @@ class Tag(SQLModel, table=True):
 class Task(SQLModel, table=True):
     __tablename__ = "Task"
     id: str = Field(primary_key=True, default_factory=gen_uuid)
+    user_id: Optional[str] = Field(default=None, index=True)
     list_id: Optional[str] = Field(default=None, foreign_key="List.id")
     parent_task_id: Optional[str] = Field(default=None, foreign_key="Task.id")
     title: str
@@ -76,6 +77,7 @@ class Routine(SQLModel, table=True):
 class Habit(SQLModel, table=True):
     __tablename__ = "Habit"
     id: str = Field(primary_key=True, default_factory=gen_uuid)
+    user_id: Optional[str] = Field(default=None, index=True)
     folder_id: Optional[str] = Field(default=None, foreign_key="Folder.id")
     routine_id: Optional[str] = Field(default=None, foreign_key="Routine.id")
     name: str
@@ -102,6 +104,7 @@ class HabitLog(SQLModel, table=True):
 class FocusSession(SQLModel, table=True):
     __tablename__ = "FocusSession"
     id: str = Field(primary_key=True, default_factory=gen_uuid)
+    user_id: Optional[str] = Field(default=None, index=True)
     task_id: Optional[str] = Field(default=None, foreign_key="Task.id")
     habit_id: Optional[str] = Field(default=None, foreign_key="Habit.id")
     timer_mode: str = "Pomodoro"    # Pomodoro / Stopwatch
@@ -119,6 +122,7 @@ class FocusSession(SQLModel, table=True):
 class CalendarEvent(SQLModel, table=True):
     __tablename__ = "CalendarEvent"
     id: str = Field(primary_key=True, default_factory=gen_uuid)
+    user_id: Optional[str] = Field(default=None, index=True)
     title: str
     description: Optional[str] = None
     location: Optional[str] = None
@@ -137,6 +141,7 @@ class CalendarEvent(SQLModel, table=True):
 class PrayerLog(SQLModel, table=True):
     __tablename__ = "PrayerLog"
     id: str = Field(primary_key=True, default_factory=gen_uuid)
+    user_id: Optional[str] = Field(default=None, index=True)
     prayer_name: str            # Fajr / Dhuhr / Asr / Maghrib / Isha
     date: str                   # YYYY-MM-DD
     calculated_time: Optional[str] = None   # HH:MM local
@@ -163,6 +168,7 @@ class IslamicActivity(SQLModel, table=True):
 class ActivityLog(SQLModel, table=True):
     __tablename__ = "ActivityLog"
     id: str = Field(primary_key=True, default_factory=gen_uuid)
+    user_id: Optional[str] = Field(default=None, index=True)
     activity_id: str = Field(foreign_key="IslamicActivity.id")
     status: str = "Completed"   # Intended / Completed
     hijri_date: Optional[str] = None
@@ -175,6 +181,7 @@ class ActivityLog(SQLModel, table=True):
 class Khatmah(SQLModel, table=True):
     __tablename__ = "Khatmah"
     id: str = Field(primary_key=True, default_factory=gen_uuid)
+    user_id: Optional[str] = Field(default=None, index=True)
     name: str = "My Khatmah"
     type: str = "Tilawah"       # Tilawah / Hifz / Murajaah / Tafsir
     start_date: Optional[str] = None
@@ -230,6 +237,7 @@ class ActiveProtocol(SQLModel, table=True):
 class UserSettings(SQLModel, table=True):
     __tablename__ = "user_settings"
     id: str = Field(primary_key=True, default_factory=gen_uuid)
+    user_id: Optional[str] = Field(default=None, index=True, unique=True)
     display_name: Optional[str] = None
     prayer_method: str = "MoonsightingCommittee"
     prayer_madhab: str = "Shafi"

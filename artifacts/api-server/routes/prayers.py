@@ -6,17 +6,16 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from sqlmodel import Session, select
+from sqlmodel import Session, select, and_
 from database import get_session
 from models import PrayerLog, UserSettings
 from utils import today_str
+from clerk_auth import get_current_user_id
 
 router = APIRouter()
 
 PRAYER_ORDER = ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"]
 
-# stored:   On_Time / Late / Missed / None(pending)
-# frontend: on_time / late / missed / pending
 _STATUS_TO   = {"pending": None, "on_time": "On_Time", "late": "Late", "missed": "Missed"}
 _STATUS_FROM = {None: "pending", "On_Time": "on_time", "Late": "late", "Missed": "missed"}
 
@@ -155,9 +154,13 @@ class UpdatePrayerBody(BaseModel):
 
 
 @router.post("/prayers/calculate")
-def calculate_prayers(body: CalculateBody, session: Session = Depends(get_session)):
+def calculate_prayers(
+    body: CalculateBody,
+    user_id: str = Depends(get_current_user_id),
+    session: Session = Depends(get_session),
+):
     target_date = body.date or today_str()
-    settings = session.exec(select(UserSettings)).first()
+    settings = session.exec(select(UserSettings).where(UserSettings.user_id == user_id)).first()
     method = body.method or (settings.prayer_method if settings else "MoonsightingCommittee")
     madhab = settings.prayer_madhab if settings else "Shafi"
 
@@ -165,19 +168,23 @@ def calculate_prayers(body: CalculateBody, session: Session = Depends(get_sessio
     if not times:
         raise HTTPException(status_code=500, detail="Prayer time calculation failed")
 
-    existing = session.exec(select(PrayerLog).where(PrayerLog.date == target_date)).all()
+    existing = session.exec(
+        select(PrayerLog).where(PrayerLog.user_id == user_id, PrayerLog.date == target_date)
+    ).all()
     if existing:
         for p in existing:
             p.calculated_time = times.get(p.prayer_name)
             session.add(p)
         session.commit()
-        prayers = session.exec(select(PrayerLog).where(PrayerLog.date == target_date)).all()
+        prayers = session.exec(
+            select(PrayerLog).where(PrayerLog.user_id == user_id, PrayerLog.date == target_date)
+        ).all()
         prayers = sorted(prayers, key=lambda p: PRAYER_ORDER.index(p.prayer_name))
         return JSONResponse(content=[serialize_prayer(p) for p in prayers])
 
     entries = []
     for name in PRAYER_ORDER:
-        p = PrayerLog(prayer_name=name, date=target_date, calculated_time=times.get(name))
+        p = PrayerLog(user_id=user_id, prayer_name=name, date=target_date, calculated_time=times.get(name))
         session.add(p)
         entries.append(p)
     session.commit()
@@ -187,14 +194,21 @@ def calculate_prayers(body: CalculateBody, session: Session = Depends(get_sessio
 
 
 @router.post("/prayers/seed")
-def seed_prayers(body: SeedBody, session: Session = Depends(get_session)):
-    existing = session.exec(select(PrayerLog).where(PrayerLog.date == body.date)).all()
+def seed_prayers(
+    body: SeedBody,
+    user_id: str = Depends(get_current_user_id),
+    session: Session = Depends(get_session),
+):
+    existing = session.exec(
+        select(PrayerLog).where(PrayerLog.user_id == user_id, PrayerLog.date == body.date)
+    ).all()
     if existing:
         return JSONResponse(content=[serialize_prayer(p) for p in sorted(existing, key=lambda p: PRAYER_ORDER.index(p.prayer_name))])
 
     entries = []
     for name in PRAYER_ORDER:
         p = PrayerLog(
+            user_id=user_id,
             prayer_name=name,
             date=body.date,
             calculated_time=(body.times or {}).get(name),
@@ -208,17 +222,28 @@ def seed_prayers(body: SeedBody, session: Session = Depends(get_session)):
 
 
 @router.get("/prayers")
-def list_prayers(date: Optional[str] = None, session: Session = Depends(get_session)):
+def list_prayers(
+    date: Optional[str] = None,
+    user_id: str = Depends(get_current_user_id),
+    session: Session = Depends(get_session),
+):
     target_date = date or today_str()
-    prayers = session.exec(select(PrayerLog).where(PrayerLog.date == target_date)).all()
+    prayers = session.exec(
+        select(PrayerLog).where(PrayerLog.user_id == user_id, PrayerLog.date == target_date)
+    ).all()
     prayers = sorted(prayers, key=lambda p: PRAYER_ORDER.index(p.prayer_name) if p.prayer_name in PRAYER_ORDER else 99)
     return JSONResponse(content=[serialize_prayer(p) for p in prayers])
 
 
 @router.patch("/prayers/{prayer_id}")
-def update_prayer(prayer_id: str, body: UpdatePrayerBody, session: Session = Depends(get_session)):
+def update_prayer(
+    prayer_id: str,
+    body: UpdatePrayerBody,
+    user_id: str = Depends(get_current_user_id),
+    session: Session = Depends(get_session),
+):
     prayer = session.get(PrayerLog, prayer_id)
-    if not prayer:
+    if not prayer or prayer.user_id != user_id:
         raise HTTPException(status_code=404, detail="Prayer not found")
 
     prayer.status = _STATUS_TO.get(body.status)

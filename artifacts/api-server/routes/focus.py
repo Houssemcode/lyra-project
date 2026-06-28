@@ -9,6 +9,7 @@ from sqlmodel import Session, select, and_
 from database import get_session
 from models import FocusSession, Task
 from utils import today_str
+from clerk_auth import get_current_user_id
 
 router = APIRouter()
 
@@ -39,13 +40,19 @@ def _parse_dt(s: str) -> datetime:
 
 
 @router.get("/focus/stats")
-def get_focus_stats(session: Session = Depends(get_session)):
+def get_focus_stats(
+    user_id: str = Depends(get_current_user_id),
+    session: Session = Depends(get_session),
+):
     now = datetime.utcnow()
     today_str_val = now.strftime("%Y-%m-%d")
     week_start = (now - timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
 
     all_sessions = session.exec(
-        select(FocusSession).where(FocusSession.started_at >= week_start)
+        select(FocusSession).where(
+            FocusSession.user_id == user_id,
+            FocusSession.started_at >= week_start,
+        )
     ).all()
 
     today_sessions = [s for s in all_sessions if s.started_at.strftime("%Y-%m-%d") == today_str_val]
@@ -78,17 +85,23 @@ def get_focus_stats(session: Session = Depends(get_session)):
 
 
 @router.get("/focus")
-def list_focus_sessions(date: Optional[str] = None, session: Session = Depends(get_session)):
+def list_focus_sessions(
+    date: Optional[str] = None,
+    user_id: str = Depends(get_current_user_id),
+    session: Session = Depends(get_session),
+):
     if date:
         start = datetime.fromisoformat(date + "T00:00:00")
         end = datetime.fromisoformat(date + "T23:59:59")
         sessions = session.exec(
             select(FocusSession).where(
-                and_(FocusSession.started_at >= start, FocusSession.started_at <= end)
+                and_(FocusSession.user_id == user_id, FocusSession.started_at >= start, FocusSession.started_at <= end)
             )
         ).all()
     else:
-        sessions = session.exec(select(FocusSession)).all()
+        sessions = session.exec(
+            select(FocusSession).where(FocusSession.user_id == user_id)
+        ).all()
 
     return JSONResponse(content=[serialize_session(s, session) for s in sessions])
 
@@ -111,12 +124,17 @@ class UpdateFocusBody(BaseModel):
 
 
 @router.post("/focus", status_code=201)
-def create_focus_session(body: CreateFocusBody, session: Session = Depends(get_session)):
+def create_focus_session(
+    body: CreateFocusBody,
+    user_id: str = Depends(get_current_user_id),
+    session: Session = Depends(get_session),
+):
     started_at = _parse_dt(body.startedAt)
     ended_at = _parse_dt(body.endedAt) if body.endedAt else None
     stored_status = _STATUS_TO.get(body.status, "Completed")
 
     fs = FocusSession(
+        user_id=user_id,
         task_id=body.taskId,
         actual_duration=body.durationMinutes,
         planned_duration=body.durationMinutes,
@@ -131,9 +149,14 @@ def create_focus_session(body: CreateFocusBody, session: Session = Depends(get_s
 
 
 @router.patch("/focus/{session_id}")
-def update_focus_session(session_id: str, body: UpdateFocusBody, session: Session = Depends(get_session)):
+def update_focus_session(
+    session_id: str,
+    body: UpdateFocusBody,
+    user_id: str = Depends(get_current_user_id),
+    session: Session = Depends(get_session),
+):
     fs = session.get(FocusSession, session_id)
-    if not fs:
+    if not fs or fs.user_id != user_id:
         raise HTTPException(status_code=404, detail="Focus session not found")
 
     if body.durationMinutes is not None:
@@ -150,9 +173,13 @@ def update_focus_session(session_id: str, body: UpdateFocusBody, session: Sessio
 
 
 @router.delete("/focus/{session_id}", status_code=204)
-def delete_focus_session(session_id: str, session: Session = Depends(get_session)):
+def delete_focus_session(
+    session_id: str,
+    user_id: str = Depends(get_current_user_id),
+    session: Session = Depends(get_session),
+):
     fs = session.get(FocusSession, session_id)
-    if not fs:
+    if not fs or fs.user_id != user_id:
         raise HTTPException(status_code=404, detail="Focus session not found")
     session.delete(fs)
     session.commit()
