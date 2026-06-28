@@ -2,7 +2,7 @@ import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import AppLayout from "@/components/layout/app-layout";
 import { NotificationScheduler } from "@/components/notification-scheduler";
 import { OnboardingWizard } from "@/components/onboarding-wizard";
@@ -21,13 +21,51 @@ import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
 
-function ThemeProvider({ children }: { children: React.ReactNode }) {
-  useEffect(() => {
-    document.documentElement.classList.add('dark');
-  }, []);
-  return <>{children}</>;
+// ─── Theme context ────────────────────────────────────────────────────────────
+type Theme = "dark" | "light";
+
+interface ThemeContextValue {
+  theme: Theme;
+  toggleTheme: () => void;
 }
 
+export const ThemeContext = createContext<ThemeContextValue>({
+  theme: "dark",
+  toggleTheme: () => {},
+});
+
+export function useTheme() {
+  return useContext(ThemeContext);
+}
+
+function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const [theme, setTheme] = useState<Theme>(() => {
+    const stored = localStorage.getItem("lyra_theme") as Theme | null;
+    return stored ?? "dark";
+  });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === "dark") {
+      root.classList.add("dark");
+    } else {
+      root.classList.remove("dark");
+    }
+    localStorage.setItem("lyra_theme", theme);
+  }, [theme]);
+
+  function toggleTheme() {
+    setTheme((t) => (t === "dark" ? "light" : "dark"));
+  }
+
+  return (
+    <ThemeContext.Provider value={{ theme, toggleTheme }}>
+      {children}
+    </ThemeContext.Provider>
+  );
+}
+
+// ─── Router ───────────────────────────────────────────────────────────────────
 function Router() {
   return (
     <AppLayout>
@@ -49,6 +87,7 @@ function Router() {
   );
 }
 
+// ─── App ──────────────────────────────────────────────────────────────────────
 const ONBOARDING_KEY = "lyra_onboarding_done";
 
 function App() {

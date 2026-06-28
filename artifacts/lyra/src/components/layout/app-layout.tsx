@@ -1,8 +1,9 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, CheckSquare, Flame, CalendarDays, Moon, Timer, BarChart3, Menu, X, Star, Settings, Trophy, FileText } from "lucide-react";
+import { LayoutDashboard, CheckSquare, Flame, CalendarDays, Moon, Timer, BarChart3, Menu, X, Star, Settings, Trophy, FileText, Sun } from "lucide-react";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { useTheme } from "@/App";
 
 const navItems = [
   { href: "/", label: "Today", icon: LayoutDashboard },
@@ -20,6 +21,7 @@ const navItems = [
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { theme, toggleTheme } = useTheme();
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
@@ -63,7 +65,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </nav>
 
         {/* Footer */}
-        <div className="px-3 py-3 border-t border-sidebar-border">
+        <div className="px-3 py-3 border-t border-sidebar-border space-y-0.5">
           <Link
             href="/settings"
             onClick={() => setMobileOpen(false)}
@@ -78,6 +80,25 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <Settings size={16} className={location === "/settings" ? "text-primary" : "text-sidebar-foreground/40"} />
             Settings
           </Link>
+
+          {/* Theme toggle */}
+          <button
+            onClick={toggleTheme}
+            data-testid="button-theme-toggle"
+            className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer w-full text-sidebar-foreground/50 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+          >
+            {theme === "dark" ? (
+              <>
+                <Sun size={16} className="text-sidebar-foreground/40" />
+                Light mode
+              </>
+            ) : (
+              <>
+                <Moon size={16} className="text-sidebar-foreground/40" />
+                Dark mode
+              </>
+            )}
+          </button>
         </div>
       </aside>
 
@@ -100,7 +121,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           >
             {mobileOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
-          <span className="font-semibold" style={{ fontFamily: "var(--app-font-display)" }}>Lyra</span>
+          <span className="font-semibold flex-1" style={{ fontFamily: "var(--app-font-display)" }}>Lyra</span>
+          {/* Theme toggle — mobile header */}
+          <button
+            onClick={toggleTheme}
+            className="p-1.5 rounded-md hover:bg-accent transition-colors text-muted-foreground"
+            data-testid="button-theme-toggle-mobile"
+          >
+            {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
         </header>
 
         {/* Page content — animated on route change */}
