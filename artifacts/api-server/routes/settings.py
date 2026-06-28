@@ -14,7 +14,8 @@ router = APIRouter()
 
 
 def serialize_settings(s: UserSettings) -> dict:
-    return camelify(s.model_dump())
+    d = s.model_dump()
+    return camelify({k: str(v) if hasattr(v, "hex") else v for k, v in d.items()})
 
 
 def get_or_create_settings(session: Session) -> UserSettings:

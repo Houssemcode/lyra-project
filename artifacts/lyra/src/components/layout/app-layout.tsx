@@ -65,7 +65,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </nav>
 
         {/* Footer */}
-        <div className="px-3 py-3 border-t border-sidebar-border space-y-0.5">
+        <div className="px-3 py-3 border-t border-sidebar-border">
           <Link
             href="/settings"
             onClick={() => setMobileOpen(false)}
@@ -80,25 +80,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <Settings size={16} className={location === "/settings" ? "text-primary" : "text-sidebar-foreground/40"} />
             Settings
           </Link>
-
-          {/* Theme toggle */}
-          <button
-            onClick={toggleTheme}
-            data-testid="button-theme-toggle"
-            className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer w-full text-sidebar-foreground/50 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-          >
-            {theme === "dark" ? (
-              <>
-                <Sun size={16} className="text-sidebar-foreground/40" />
-                Light mode
-              </>
-            ) : (
-              <>
-                <Moon size={16} className="text-sidebar-foreground/40" />
-                Dark mode
-              </>
-            )}
-          </button>
         </div>
       </aside>
 

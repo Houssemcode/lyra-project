@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useGetSettings, useUpdateSettings, getGetSettingsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Settings as SettingsIcon, User, Moon, Clock, CheckCircle2, Info, Bell, BellOff, AlertTriangle, Download, FileJson, FileText, Loader2 } from "lucide-react";
+import { Settings as SettingsIcon, User, Moon, Sun, Clock, CheckCircle2, Info, Bell, BellOff, AlertTriangle, Download, FileJson, FileText, Loader2 } from "lucide-react";
+import { useTheme } from "@/App";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -225,6 +226,7 @@ export default function SettingsPage() {
     }
   }
 
+  const { theme, toggleTheme } = useTheme();
   const selectedMethod = PRAYER_METHODS.find((m) => m.value === prayerMethod);
   const notifSupported = typeof Notification !== "undefined";
   const notifDenied = permission === "denied";
@@ -447,6 +449,28 @@ export default function SettingsPage() {
                   ))}
                 </SelectContent>
               </Select>
+            </FieldRow>
+
+            <FieldRow
+              label="Appearance"
+              hint={theme === "dark" ? "Currently using dark theme" : "Currently using light theme"}
+            >
+              <button
+                onClick={toggleTheme}
+                data-testid="button-theme-toggle"
+                className="w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg border border-border bg-background hover:bg-accent transition-colors text-sm"
+              >
+                <span className="flex items-center gap-2 text-foreground">
+                  {theme === "dark" ? (
+                    <><Moon size={14} className="text-primary" /> Dark</>
+                  ) : (
+                    <><Sun size={14} className="text-primary" /> Light</>
+                  )}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  Switch to {theme === "dark" ? "light" : "dark"}
+                </span>
+              </button>
             </FieldRow>
           </SectionCard>
 
