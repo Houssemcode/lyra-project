@@ -6,8 +6,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from sqlalchemy import text
 from sqlmodel import Session
-import httpx
-
 from database import create_db_and_tables, engine
 from seed import seed_islamic_activities, seed_routines
 from routes import auth, tasks, habits, events, prayers, focus, islamic, settings, gamification, reports, daily_summary, export
